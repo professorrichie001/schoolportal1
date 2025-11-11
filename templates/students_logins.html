@@ -1,0 +1,103 @@
+{% extends "trainer.html" %}
+{% block content %}
+<link rel="stylesheet" href="static/css/students_logins.css">
+
+<div class="container-students">
+    <div class="header-row">
+        <div>
+            <h1 class="page-title">Student Login Details</h1>
+            <small class="text-muted">Manage student passwords quickly and securely.</small>
+        </div>
+        <div class="search-input">
+            <!-- Server-side search form (GET) so users can bookmark or share queries -->
+            <form method="get" class="d-flex">
+                <input name="q" id="searchInput" value="{{ q|default('') }}" class="form-control" type="search" placeholder="Search (Admission No, First/Last Name, etc.)...">
+                <button class="btn btn-outline-secondary btn-sm ms-2" type="submit">Search</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle">
+            <thead>
+                <tr>
+                    <th scope="col">Admission Number</th>
+                    <th scope="col">First Name</th>
+                    <th scope="col">Last Name</th>
+                    <th scope="col">Password</th>
+                    <th scope="col">Update Password</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                {% for student in students %}
+                <tr>
+                    <td>{{ student[0] }}</td>
+                    <td>{{ student[1] }}</td>
+                    <td>{{ student[2] }}</td>
+                    <td><code>{{ student[3] }}</code></td>
+                    <td>
+                        <form action="/students_logins" method="post" class="d-flex gap-2 update-form align-items-center">
+                            <input type="hidden" name="admission_number" value="{{ student[0] }}">
+                            <input type="text" name="new_password" class="form-control form-control-sm" placeholder="New Password" required>
+                            <button class="btn btn-sm btn-primary" type="submit">Update</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+        {# Pagination controls #}
+        {% if total_pages and total_pages > 1 %}
+        <nav aria-label="Students pagination">
+            <ul class="pagination justify-content-center mt-3">
+                <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('show_students', q=q, page=page-1) }}" aria-label="Previous">&laquo; Prev</a>
+                </li>
+
+                {# show a window of pages around current page #}
+                {% set start = page-3 if page-3 > 1 else 1 %}
+                {% set end = page+3 if page+3 < total_pages else total_pages %}
+                {% if start > 1 %}
+                    <li class="page-item"><a class="page-link" href="{{ url_for('show_students', q=q, page=1) }}">1</a></li>
+                    {% if start > 2 %}
+                        <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+                    {% endif %}
+                {% endif %}
+
+                {% for p in range(start, end+1) %}
+                    <li class="page-item {% if p == page %}active{% endif %}"><a class="page-link" href="{{ url_for('show_students', q=q, page=p) }}">{{ p }}</a></li>
+                {% endfor %}
+
+                {% if end < total_pages %}
+                    {% if end < total_pages - 1 %}
+                        <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+                    {% endif %}
+                    <li class="page-item"><a class="page-link" href="{{ url_for('show_students', q=q, page=total_pages) }}">{{ total_pages }}</a></li>
+                {% endif %}
+
+                <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('show_students', q=q, page=page+1) }}" aria-label="Next">Next &raquo;</a>
+                </li>
+            </ul>
+        </nav>
+        {% endif %}
+
+    <script>
+        // client-side filter for the students table
+        document.addEventListener('DOMContentLoaded', function () {
+            const input = document.getElementById('searchInput');
+            const rows = document.querySelectorAll('#tableBody tr');
+            if (!input) return;
+            input.addEventListener('input', function (e) {
+                const q = e.target.value.trim().toLowerCase();
+                rows.forEach(r => {
+                    const txt = r.textContent.toLowerCase();
+                    r.style.display = txt.includes(q) ? '' : 'none';
+                });
+            });
+        });
+    </script>
+
+{% endblock %}

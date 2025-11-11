@@ -1,0 +1,52 @@
+{% extends "dashboard.html" %}
+
+{% block content %}
+    <style>
+        /* Minimal, page-scoped styles for Payment History */
+        .payment-history-container{
+            max-width: 900px;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.08);
+            padding: 20px;
+            margin: 20px auto;
+        }
+        .payment-history-container h2{ text-align:center; margin-bottom:16px; }
+        .payment-history-table{ width:100%; border-collapse:collapse; }
+        .payment-history-table th, .payment-history-table td{ padding:10px; border:1px solid #e1e1e1; text-align:left }
+        .payment-history-table thead th{ background:#f7f7f7 }
+        .download-link{ text-align:center; margin-top:18px }
+        @media (max-width:600px){ .payment-history-container{ padding:12px; margin:12px } .payment-history-table th, .payment-history-table td{ font-size:14px } }
+    </style>
+
+<div class="payment-history-container">
+    <h2>Payment History</h2>
+    <table class="payment-history-table">
+        <thead>
+            <tr>
+                <th>Amount Paid</th>
+                <th>Remaining Balance</th>
+                <th>Date &amp; Time</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for amount_paid, remaining_balance, date_time in history %}
+            <tr>
+                <td>sh.{{ amount_paid }} </td>
+                <td>sh.{{ remaining_balance }}</td>
+                <td>{{ date_time }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="3" style="text-align:center; padding:18px; color:#666">No payment history found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="download-link">
+        <a href="{{ url_for('download_history') }}" target="_blank">Download Payment History as PDF</a>
+    </div>
+</div>
+
+{% endblock %}

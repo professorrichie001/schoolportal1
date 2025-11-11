@@ -1,0 +1,66 @@
+{% extends "trainer.html" %}
+{% block content %}
+<link rel="stylesheet" href="static/css/upload.css">
+
+<div class="container upload-card">
+    <div class="card shadow-sm">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Upload a New Memo <small class="text-muted">(.pdf)</small></h5>
+            <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary">Back</a>
+        </div>
+        <div class="card-body">
+            <form method="POST" enctype="multipart/form-data" class="row g-3">
+                <div class="col-12">
+                    <label for="file" class="form-label">Select PDF file</label>
+                    <input class="form-control" type="file" name="file" id="file" accept="application/pdf" required>
+                    <div class="form-text">Only PDF files are accepted.</div>
+                </div>
+
+                <div class="col-md-6">
+                    <label for="image" class="form-label">Front Image (optional)</label>
+                    <input class="form-control" type="file" name="image" id="image" accept="image/*">
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">Preview</label>
+                    <div class="upload-preview" id="preview">
+                        <span class="text-muted">No image selected</span>
+                    </div>
+                </div>
+
+                <div class="col-12 d-flex justify-content-end gap-2">
+                    <button type="reset" class="btn btn-outline-secondary">Reset</button>
+                    <button type="submit" class="btn btn-primary btn-upload">Upload</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Small client-side preview for the optional image input
+document.addEventListener('DOMContentLoaded', function () {
+    const imageInput = document.getElementById('image');
+    const preview = document.getElementById('preview');
+
+    if (!imageInput || !preview) return;
+
+    imageInput.addEventListener('change', function (ev) {
+        const file = ev.target.files[0];
+        preview.innerHTML = '';
+        if (!file) {
+            preview.innerHTML = '<span class="text-muted">No image selected</span>';
+            return;
+        }
+        if (!file.type.startsWith('image/')) {
+            preview.innerHTML = '<span class="text-danger">Selected file is not an image</span>';
+            return;
+        }
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        img.onload = () => URL.revokeObjectURL(img.src);
+        preview.appendChild(img);
+    });
+});
+</script>
+{% endblock %}

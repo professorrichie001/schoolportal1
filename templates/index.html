@@ -1,0 +1,76 @@
+{% extends "trainer.html" %}
+{% block content %}
+<link rel="stylesheet" href="static/css/index.css">
+
+<div class="container">
+    <div class="hero mb-4 p-3">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
+            <div>
+                <h1 class="mb-0">Memos & Announcements</h1>
+                <p class="lead">Latest memos for teachers and students. Download or remove entries below.</p>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <a href="{{ url_for('upload') }}" class="btn btn-primary">Upload a new memo</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="search-input">
+            <input id="memoSearch" type="search" class="form-control" placeholder="Search memos by filename...">
+        </div>
+    </div>
+
+    {% if books|length == 0 %}
+        <div class="empty-state">
+            <p class="mb-2"><strong>No memos yet</strong></p>
+            <p class="small">Click <a href="{{ url_for('upload') }}">Upload a new memo</a> to get started.</p>
+        </div>
+    {% else %}
+        <div class="row g-3" id="memosGrid">
+            {% for book in books %}
+            <div class="col-12 col-sm-6 col-md-4 col-lg-3 memo-item">
+                <div class="card memo-card h-100">
+                    {% if book.image %}
+                        <img src="{{ url_for('static', filename='uploads/images/' + book.image) }}" class="card-img-top" alt="{{ book.filename }}">
+                    {% else %}
+                        <svg class="bd-placeholder-img card-img-top" width="100%" height="160" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="No image" preserveAspectRatio="xMidYMid slice" focusable="false"><rect width="100%" height="100%" fill="#e9ecef"></rect><text x="50%" y="50%" fill="#6c757d" dy="0.35em" text-anchor="middle">No preview</text></svg>
+                    {% endif %}
+                    <div class="card-body d-flex flex-column">
+                        <h6 class="card-title text-truncate" title="{{ book.filename }}">{{ book.filename }}</h6>
+                        <div class="mt-auto d-flex gap-2">
+                            <a href="{{ url_for('download', filename=book.filename) }}" class="btn btn-sm btn-outline-primary">Download</a>
+                            <form method="POST" action="{{ url_for('delete', filename=book.filename) }}" onsubmit="return confirm('Delete this memo?');">
+                                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <script>
+        // Simple client-side filter for memos by filename
+        document.addEventListener('DOMContentLoaded', function () {
+            const input = document.getElementById('memoSearch');
+            const grid = document.getElementById('memosGrid');
+            if (!input || !grid) return;
+            input.addEventListener('input', function (e) {
+                const q = e.target.value.trim().toLowerCase();
+                const items = grid.querySelectorAll('.memo-item');
+                items.forEach(item => {
+                    const title = item.querySelector('.card-title').textContent.toLowerCase();
+                    item.style.display = title.includes(q) ? '' : 'none';
+                });
+            });
+        });
+    </script>
+
+{% endblock %}
+
+
+
+
+

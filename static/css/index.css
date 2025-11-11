@@ -1,0 +1,33 @@
+/* Page-specific styles for index (Memos) */
+.hero {
+  padding: 28px 0;
+  background: linear-gradient(90deg, rgba(63,94,251,0.08), rgba(252,70,107,0.04));
+  border-radius: 8px;
+}
+.hero h1 {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.hero p.lead {
+  margin-bottom: 0;
+  color: #6c757d;
+}
+
+.memo-card .card-img-top {
+  height: 160px;
+  object-fit: cover;
+}
+
+.empty-state {
+  padding: 40px 0;
+  text-align: center;
+  color: #6c757d;
+}
+
+.search-input {
+  max-width: 420px;
+}
+
+@media (max-width: 576px) {
+  .memo-card .card-img-top { height: 120px; }
+}

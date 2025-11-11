@@ -1,0 +1,43 @@
+/* Custom styles for upload page */
+/* Keeps visual harmony with Kaiadmin theme and Bootstrap 5 */
+
+.upload-card {
+  max-width: 900px;
+  margin: 24px auto;
+}
+
+.upload-preview {
+  border: 1px dashed #dee2e6;
+  border-radius: 6px;
+  padding: 12px;
+  background: #fafafa;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.upload-preview img {
+  max-height: 140px;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.file-name {
+  font-size: 0.95rem;
+  color: #495057;
+}
+
+/* Make file inputs more consistent across browsers */
+.custom-file-input {
+  height: calc(2.25rem + 2px);
+  padding: 0.375rem 0.75rem;
+}
+
+.btn-upload {
+  min-width: 120px;
+}
+
+@media (max-width: 576px) {
+  .upload-card { padding: 0 12px; }
+}

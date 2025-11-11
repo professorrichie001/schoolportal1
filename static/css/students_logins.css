@@ -1,0 +1,31 @@
+/* Page-specific styles for students_logins */
+.container-students {
+  max-width: 1100px;
+  margin: 20px auto;
+}
+.header-row {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  margin-bottom:12px;
+}
+.page-title {
+  margin:0;
+  font-weight:600;
+}
+.search-input {
+  max-width:520px;
+}
+.table thead th {
+  background: linear-gradient(90deg,#5063f0,#7b61ff);
+  color: #fff;
+  vertical-align:middle;
+}
+.update-form input[type="text"] {
+  max-width: 160px;
+}
+@media (max-width: 576px) {
+  .update-form { flex-direction: column; gap:8px; align-items: stretch; }
+  .update-form input[type="text"] { max-width: 100%; }
+}
