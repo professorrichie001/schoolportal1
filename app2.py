@@ -77,6 +77,7 @@ def login():
                                 return render_template('login.html', error="Invalid admission number or password")
     return render_template('login.html')
 
+
 #====================profile
 @app.route('/home')
 def home():
@@ -151,7 +152,7 @@ def settings():
 
 @app.route('/trainer2')
 def trainer2():
-    return render_template('trainer2.html')  
+    return render_template('trainer2.html')
 
 @app.route('/logout')
 def logout():
@@ -380,7 +381,10 @@ def upload():
 @app.route('/trainer')
 def trainer():
     timer=document_functions.copyright_updater()
-    return render_template('trainer.html',timer=timer)
+    username = session.get('username')
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
+    return render_template('trainer.html',timer=timer,profile_pic=profile_pic)
 
 @app.route('/download/<filename>')
 def download(filename):
@@ -458,7 +462,7 @@ def profile():
 
 @app.route('/tprofile', methods=['POST','GET'])
 def tprofile():
-    username = request.form.get('userName')
+    username = request.form.get('username')
     image_file = request.files.get('profile_pic')
 
     if image_file:
@@ -534,6 +538,13 @@ def dashb():
     return render_template('dashboard.html', profile_picture=user_data['profile_picture'],admission_no=admission)
 
 
+@app.route('/student_dashboard')
+def student_dashboard():
+    admission_no = session.get('admission_no')
+    admission=document_functions.replace_slash_with_dot(admission_no)
+    profile_pic = database.get_profile(admission_no)
+    return render_template('student_dashboard.html', profile_pic=profile_pic,admission_no=admission)
+
 
 @app.route('/students_with_balance')
 def students_with_balance():
@@ -544,15 +555,24 @@ def students_with_balance():
 #===============Add Student
 @app.route('/add_or_remove')
 def add_or_remove_student():
-    return render_template("add_or_remove_student.html")
+    username = session.get('username')
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
+    return render_template("add_or_remove_student.html", profile_pic=profile_pic)
 
 @app.route('/add_remove_teacher')
 def a_or_r():
-    return render_template("add_or_remove_teacher.html")
+    username = session.get('username')
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
+    return render_template("add_or_remove_teacher.html",profile_pic=profile_pic)
 
 @app.route('/add_student')
 def add():
-    return render_template('add_student.html')
+    username = session.get('username')
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
+    return render_template('add_student.html',profile_pic=profile_pic)
 
 
 @app.route('/signup_success')
@@ -605,15 +625,21 @@ def submit_signup():
 #=================Non Compliant Student
 @app.route('/non_compliant_students')
 def non_compliant_students():
+    username = session.get('username')
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
     students = database.non_compliant_students()
-    return render_template('non_compliant_students.html', students=students)
+    return render_template('non_compliant_students.html', students=students, profile_pic=profile_pic)
 
 
 #===============Ill Students
 @app.route('/health_issue')
 def health_issue():
+    username = session.get('username')
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
     students = database.get_ill_students()
-    return render_template('health_issue.html', students=students)
+    return render_template('health_issue.html', students=students, profile_pic=profile_pic)
 #================Add Health issue Student==========
 #================Remove Health issue Student=============
 #================View all registered students=============
@@ -669,13 +695,19 @@ def email_update():
 
 @app.route('/registered_students')
 def registered():
+    username = session.get('username')
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
     students = all_students()
-    return render_template('registered_students.html',students=students)
+    return render_template('registered_students.html',students=students, profile_pic=profile_pic)
 
 @app.route('/registered_teachers')
 def registered1():
+    username = session.get('username')
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
     teachers = all_teacher()
-    return render_template('registered_teachers.html',teachers = teachers)
+    return render_template('registered_teachers.html',teachers = teachers, profile_pic=profile_pic)
 
 
 
@@ -1004,6 +1036,9 @@ def change_password():
 
 @app.route('/change_manager_password', methods=['GET', 'POST'])
 def manager_password():
+    username = session.get('username')
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
     if request.method == 'POST':
         # Get form data
         admission_no = session.get('username')  # Example admission number, ideally you'd get this from session or another source
@@ -1036,7 +1071,7 @@ def manager_password():
             print('current password is incorrect')
 
         conn.close()
-    return render_template('manager_password.html')
+    return render_template('manager_password.html', profile_pic=profile_pic)
 
 #==================Developer portal
 UPLOAD_FOLDER = 'static/images'
@@ -1173,9 +1208,15 @@ def show_students():
 # Route to display the HTML form
 @app.route('/fee_update_success')
 def f_success():
-    return render_template('update_fee_success.html')
+    username = session.get('username')
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
+    return render_template('update_fee_success.html', profile_pic=profile_pic)
 @app.route('/set_fee', methods=['GET', 'POST'])
 def set_fee():
+    username = session.get('username')
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
     if request.method == 'POST':
         # Get fee values from form submission
         term1_fee = request.form['term1']
@@ -1235,11 +1276,14 @@ def set_fee():
     # Render the HTML form on GET request
     students = database.fee_data()
 
-    return render_template('set_fee.html',students=students)
+    return render_template('set_fee.html',students=students, profile_pic=profile_pic)
 
 # Update student balances based on the current term
 @app.route('/update_balances',  methods=['GET', 'POST'])
 def update_balances():
+    username = session.get('username')
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
     if request.method == 'POST':
         fee_amount = request.form['fee_amount']
         with sqlite3.connect('fees.db') as conn:
@@ -1298,10 +1342,13 @@ def update_balances():
             conn.commit()
 
         return redirect(url_for('f_success'))
-    return render_template('update_balances.html',fee_amount=document_functions.c_fee())
+    return render_template('update_balances.html',fee_amount=document_functions.c_fee(), profile_pic=profile_pic)
 
 @app.route('/add-student', methods=['POST'])
 def add_student():
+    username = session.get('username')
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
     first_name = request.form['first_name'].upper()
     last_name = request.form['last_name'].upper()
     admission_no = database.get_admission_number(first_name, last_name)
@@ -1317,10 +1364,13 @@ def add_student():
         """, (admission_no, sickness, treatment))
         conn.commit()
 
-    return redirect('/health_issue')
+    return redirect('/health_issue',profile_pic=profile_pic)
 
 @app.route('/delete-student/<admission_no>', methods=['POST'])
 def delete_ill_student(admission_no):
+    username = session.get('username')
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
     admission_number =document_functions.replace_slash_with_slash(admission_no)
     # Remove the student from the database
     with sqlite3.connect('student.db') as conn:
@@ -1328,9 +1378,12 @@ def delete_ill_student(admission_no):
         cursor.execute("DELETE FROM ill_students WHERE admission_no = ?", (admission_number,))
         conn.commit()
 
-    return redirect('/health_issue')
+    return redirect('/health_issue', profile_pic=profile_pic)
 @app.route('/add-student3', methods=['POST'])
 def add_student_ncs():
+    username = session.get('username')
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
     admission_no = request.form['admission_no']
     reason = request.form['reason'].capitalize()
     duration = request.form['duration']
@@ -1346,21 +1399,27 @@ def add_student_ncs():
         """, (admission_no,  send_date, return_date, status, duration, reason, status))
         conn.commit()
 
-    return redirect('/non_compliant_students')
+    return redirect('/non_compliant_students', profile_pic=profile_pic)
 
 @app.route('/delete-student1/<admission_no>', methods=['POST'])
 def delete_student_ncs(admission_no):
+    username = session.get('username')
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
     with sqlite3.connect('student.db') as conn:
         admission_number=document_functions.replace_slash_with_slash(admission_no)
         cursor = conn.cursor()
         cursor.execute("DELETE FROM non_compliant WHERE admission_no = ?", (admission_number,))
         conn.commit()
 
-    return redirect('/non_compliant_students')
+    return redirect('/non_compliant_students', profile_pic=profile_pic)
 
 
 @app.route('/update-status/<admission_no>', methods=['POST'])
 def update_status(admission_no):
+    username = session.get('username')
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
     admission_number=document_functions.replace_slash_with_slash(admission_no)
     new_status = request.form['status']
 
@@ -1373,7 +1432,7 @@ def update_status(admission_no):
         """, (new_status, admission_number))
         conn.commit()
 
-    return redirect('/non_compliant_students')
+    return redirect('/non_compliant_students', profile_pic=profile_pic)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -1540,11 +1599,17 @@ def signup():
 
 @app.route('/delete_students', methods=['GET','POST'])
 def delete_students():
-    return render_template('students.html')
+    username = session.get('username')
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
+    return render_template('students.html', profile_pic=profile_pic)
 
 @app.route('/delete_teachers', methods=['GET','POST'])
 def delete_teachers():
-    return render_template('teachers.html')
+    username = session.get('username')
+    username = document_functions.replace_slash_with_dot(username)
+    profile_pic = database.get_aprofile(username)
+    return render_template('teachers.html', profile_pic=profile_pic)
 
 @app.route('/forgot_password1')
 def forgot_password1():

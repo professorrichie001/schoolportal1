@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Dashboard</title>
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <!-- Central stylesheet -->
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+   
+h1, h2 {
+    color: #2c3e50;
+    margin-bottom: 10px;
+    animation: slideDown 0.8s ease;
+}
+
+
+.dashboard {
+    
+    animation: fadeInUp 0.8s ease;
+}
+
+form {
+    margin-bottom: 25px;
+    display: flex;
+    flex-direction: column;
+}
+
+label {
+    font-weight: 600;
+    margin-bottom: 5px;
+    color: #34495e;
+}
+
+input[type="tel"],
+input[type="text"],
+input[type="file"] {
+    padding: 12px;
+    font-size: 1em;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    margin-bottom: 15px;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+input:focus {
+    border-color: #3498db;
+    box-shadow: 0 0 6px rgba(52, 152, 219, 0.3);
+    outline: none;
+}
+
+button {
+    background-color: #3498db;
+    color: white;
+    padding: 12px 18px;
+    border: none;
+    border-radius: 10px;
+    font-size: 1em;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    width: fit-content;
+}
+
+button:hover {
+    background-color: #2980b9;
+    transform: scale(1.03);
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .dashboard {
+        padding: 15px;
+    }
+
+    h1, h2 {
+        font-size: 1.4em;
+    }
+
+    button {
+        width: 100%;
+    }
+}
+
+</style>
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+
+    <!-- Navigation -->
+    <div class="container">
+    <nav class="navigation" id="primary-nav" aria-label="Primary">
+            <ul>
+                <li>
+                    <a href="#">
+                        <img src="{{ url_for('static', filename='images/your_uploaded_image.jpg') }}" alt="Logo" class="nav-logo">
+                    </a>
+                </li>
+                <li><a href="{{ url_for('home') }}"><span class="icon"><ion-icon name="home-outline"></ion-icon></span><span class="title">Dashboard</span></a></li>
+                <li><a href="{{ url_for('view_memo') }}"><span class="icon"><ion-icon name="newspaper-outline"></ion-icon></span><span class="title">Memos</span></a></li>
+                <li><a href="/history"><span class="icon"><ion-icon name="receipt-outline"></ion-icon></span><span class="title">Payment History</span></a></li>
+                <li><a href="{{ url_for('my_fee_payment') }}"><span class="icon"><ion-icon name="cash-outline"></ion-icon></span><span class="title">Pay Fees</span></a></li>
+                <li><a href="{{ url_for('student_scores') }}"><span class="icon"><ion-icon name="clipboard"></ion-icon></span><span class="title">Examinations</span></a></li>
+                <li><a href="{{ url_for('student_qr') }}"><span class="icon"><ion-icon name="qr-code-outline"></ion-icon></span><span class="title">Qrcode</span></a></li>
+                <li><a href="{{ url_for('settings') }}"><span class="icon"><ion-icon name="settings-outline"></ion-icon></span><span class="title">Settings</span></a></li>
+                <li><a href="{{ url_for('change_password') }}"><span class="icon"><ion-icon name="lock-closed-outline"></ion-icon></span><span class="title">Password</span></a></li>
+                <li><a href="{{ url_for('logout') }}"><span class="icon"><ion-icon name="log-out-outline"></ion-icon></span><span class="title">Log Out</span></a></li>
+            </ul>
+        </nav>
+
+        <main class="main">
+            <header class="topbar">
+                <button class="toggle" aria-label="Toggle sidebar" aria-expanded="false" aria-controls="primary-nav"><ion-icon class="Menu" name="menu"></ion-icon></button>
+                <div class="search" role="search"><label></label></div>
+                <div class="user" aria-live="polite">
+                    <h2 class="visually-hidden">Current profile picture</h2>
+                    <img src="{{ profile_pic }}" alt="Profile Picture">
+                </div>
+            </header>
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/main.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

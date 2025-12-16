@@ -77,7 +77,7 @@ def init_student_add_name():
         cursor = conn.cursor()
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS students(
-             admission_no TEXT PRIMARY KEY, 
+             admission_no TEXT PRIMARY KEY,
              first_name TEXT,
              middle_name TEXT,
              last_name TEXT,
@@ -342,7 +342,7 @@ def get_profile(admission_no: str) -> str:
         cursor = conn.cursor()
         cursor.execute("SELECT profile_pic FROM students WHERE admission_no = ?", (admission_no,))
         result = cursor.fetchone()
-        
+
         if result and result[0]:
             # Convert binary data to base64
             base64_image = base64.b64encode(result[0]).decode('utf-8')
@@ -350,20 +350,46 @@ def get_profile(admission_no: str) -> str:
         else:
             print("No image found for the given admission number.")
             return None
-            
+
     except sqlite3.Error as e:
         print(f"Database error: {e}")
         return None
     finally:
         conn.close()
 
+def get_aprofile(username: str) -> str:
+    try:
+        conn = sqlite3.connect('manager.db')
+        cursor = conn.cursor()
+        cursor.execute("""
+        SELECT m.profile_picture
+        FROM manager AS m
+        INNER JOIN logins AS l ON m.manager_id = l.manager_id
+        WHERE l.username = ?
+        """, (username,))
+
+        result = cursor.fetchone()
+
+        if result and result[0]:
+            # Convert binary data to base64
+            base64_image = base64.b64encode(result[0]).decode('utf-8')
+            return f"data:image/png;base64,{base64_image}"
+        else:
+            print("No image found for the given admission number.")
+            return None
+
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        return None
+    finally:
+        conn.close()
 def get_qr_pic_st(admission_no: str) -> str:
     try:
         conn = sqlite3.connect('student.db')
         cursor = conn.cursor()
         cursor.execute("SELECT qrcode_st FROM students WHERE admission_no = ?", (admission_no,))
         result = cursor.fetchone()
-        
+
         if result and result[0]:
             # Convert binary data to base64
             base64_image = base64.b64encode(result[0]).decode('utf-8')
@@ -371,7 +397,7 @@ def get_qr_pic_st(admission_no: str) -> str:
         else:
             print("No qrcode found for the given admission number.")
             return None
-            
+
     except sqlite3.Error as e:
         print(f"Database error: {e}")
         return None
@@ -385,7 +411,7 @@ def get_profile_t(username: str) -> str:
         cursor = conn.cursor()
         cursor.execute("SELECT profile_picture FROM admin_data WHERE position = ?", (username,))
         result = cursor.fetchone()
-        
+
         if result and result[0]:
             # Convert binary data to base64
             base64_image = base64.b64encode(result[0]).decode('utf-8')
@@ -393,7 +419,7 @@ def get_profile_t(username: str) -> str:
         else:
             print("No image found for the given admission number.")
             return None
-            
+
     except sqlite3.Error as e:
         print(f"Database error: {e}")
         return None
@@ -432,7 +458,7 @@ def view_students(grade_list):
     cursor = conn.cursor()
 
     # Define the list of grades to filter
- 
+
 
     # Create a query with placeholders for dynamic filtering
     query = '''SELECT students.admission_no, students.first_name, students.last_name, rest.Grade
@@ -467,7 +493,7 @@ def get_students_and_subjects():
         query = '''
         SELECT s.first_name, s.last_name, sub.*
         FROM students s
-        INNER JOIN subjects sub ON s.admission_no = sub.admission_no 
+        INNER JOIN subjects sub ON s.admission_no = sub.admission_no
         ORDER BY sub.average
         '''
 
@@ -573,7 +599,7 @@ def insert_time(admission_no,year, term, exam_type):
     with sqlite3.connect('student.db') as conn:
         cursor = conn.cursor()
         query = '''
-                INSERT INTO Examinations (admission_no,year,term,type) 
+                INSERT INTO Examinations (admission_no,year,term,type)
                 VALUES ( ?, ?, ?, ?)
                 '''
         cursor.execute(query, (admission_no,year,term,exam_type))
@@ -646,7 +672,7 @@ def remove_student_subjects(admission_no):
         conn.commit()
 
 def del_teacher_details(username):
-    
+
     # Connect to the SQLite database
     with sqlite3.connect('admin.db') as conn:
         cursor = conn.cursor()
@@ -662,7 +688,7 @@ def del_teacher_details(username):
         # Commit the transaction to make sure the deletion is saved
         conn.commit()
 def del_teacher(username):
-    
+
     # Connect to the SQLite database
     with sqlite3.connect('admin.db') as conn:
         cursor = conn.cursor()
@@ -679,7 +705,7 @@ def del_teacher(username):
         conn.commit()
 
 def del_teacher_logins(username):
-    
+
     # Connect to the SQLite database
     with sqlite3.connect('admin.db') as conn:
         cursor = conn.cursor()
@@ -720,7 +746,7 @@ def init_exams_table():
             year number,
             term number,
             type TEXT,
-            
+
         '''
         for i in range(len(subject)):
             create_table_query += f'{subject[i]} REAL, '
@@ -804,8 +830,8 @@ def insert_non_compliant_students(admission_no, send_date,return_date,duration,r
                     duration,
                     reason,
                     status
-                    
-                   
+
+
                 )  VALUES (?, ?, ?, ?,?,?)
             ''', (admission_no, send_date,return_date,duration,reason.capitalize(),status))
         conn.commit()
@@ -818,7 +844,7 @@ def non_compliant_students():
         cursor.execute('''
         SELECT students.admission_no, students.first_name, students.last_name, non_compliant.reason,non_compliant.duration,non_compliant.send_date,non_compliant.return_date,non_compliant.status
             FROM students
-            INNER JOIN non_compliant ON students.admission_no = non_compliant.admission_no 
+            INNER JOIN non_compliant ON students.admission_no = non_compliant.admission_no
         ''')
         result = cursor.fetchall()
         # Process the result to replace slashes with dots
@@ -909,7 +935,7 @@ def student_exist(admission_no):
         cursor.execute("SELECT * FROM students WHERE admission_no = ?", (admission_no,))
         existing_student = cursor.fetchone()
         return existing_student
-    
+
 # check if Student's email exist
 def student_email_exists(email):
     with sqlite3.connect('student.db') as conn:
@@ -927,7 +953,7 @@ def average_table():
             admission_no TEXT,
             average REAL,
             FOREIGN KEY (admission_no) REFERENCES students (admission_no)
-        ) 
+        )
         ''')
         conn.commit()
 
@@ -943,7 +969,7 @@ def add_column_average():
 def get_all_students_exams():
     query_template = '''
             SELECT students.admission_no, students.first_name, {subjects}, Examinations.average
-    
+
         FROM students
         JOIN Examinations ON students.admission_no = Examinations.admission_no
         ORDER BY Examinations.average
@@ -979,7 +1005,7 @@ def set_average(admission_no,term,year,exam_type):
         avg_marks = cursor.fetchone()[0]  # Fetch the average from the result
 
         query2 = '''
-        UPDATE Examinations SET average = ? WHERE admission_no = ? AND term = ? AND year = ? AND type = ? 
+        UPDATE Examinations SET average = ? WHERE admission_no = ? AND term = ? AND year = ? AND type = ?
         '''
         cursor.execute(query2,(avg_marks,admission_no,term,year,exam_type))
 
@@ -997,7 +1023,7 @@ def get_students_marks_filtered(year,term,exam_type,grade):
             JOIN Examinations ON students.admission_no = Examinations.admission_no
             JOIN rest ON Examinations.admission_no = rest.admission_no
             WHERE Examinations.year = ? AND Examinations.term = ? AND Examinations.type = ? AND rest.grade = ?
-            
+
         '''
 
     subject_columns = ', '.join([f'Examinations.{subj}' for subj in subject])
@@ -1075,12 +1101,12 @@ def get_admission_number(first_name, last_name):
         cursor = conn.cursor()
         cursor.execute('''
         SELECT admission_no FROM students
-        WHERE first_name = ? 
+        WHERE first_name = ?
         AND last_name = ?
         ''',(first_name.upper(), last_name.upper()))
         admission_number = cursor.fetchone()[0]
     return admission_number
-#==================GET ADMISSION DATE 
+#==================GET ADMISSION DATE
 def get_admission_date(admission_no):
     with sqlite3.connect('student.db') as conn:
         cursor = conn.cursor()
@@ -1096,7 +1122,7 @@ def get_exam_type(admission_no):
     with sqlite3.connect('student.db') as conn:
         cursor = conn.cursor()
         cursor.execute('''
-        SELECT type 
+        SELECT type
         FROM Examinations
         WHERE admission_no = ?
         ''',(admission_no,))
@@ -1190,7 +1216,7 @@ def get_password_s(db_name, email):
         cursor = conn.cursor()
 
         # Query to fetch the password for the given username
-        cursor.execute('''SELECT logins.password 
+        cursor.execute('''SELECT logins.password
         FROM logins
         JOIN students ON logins.admission_no = students.admission_no
         WHERE students.email = ?''', (email,))
@@ -1214,7 +1240,7 @@ def get_password_m(db_name, email):
         cursor = conn.cursor()
 
         # Query to fetch the password for the given username
-        cursor.execute('''SELECT logins.password 
+        cursor.execute('''SELECT logins.password
         FROM logins
         JOIN manager ON logins.username = manager.position
         WHERE manager.email = ?''', (email,))
