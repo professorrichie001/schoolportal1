@@ -3,105 +3,473 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Change Manager Page Title</title>
+    <title>Developer Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #f0f0f0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
         }
 
-        .container {
-            background-color: #fff;
+        .dashboard {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
             padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .header-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 28px;
+        }
+
+        .header-content h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+
+        .header-content p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .card-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
         }
 
-        h2 {
-            margin-bottom: 20px;
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
         }
 
-        input[type="text"] {
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        input[type="text"],
+        input[type="file"] {
             width: 100%;
-            padding: 10px;
-            margin-bottom: 20px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            font-size: 16px;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+            font-family: inherit;
+        }
+
+        input[type="text"]:focus,
+        input[type="file"]:focus {
+            outline: none;
+            border-color: #667eea;
+            background-color: #f8f9ff;
         }
 
         button {
             width: 100%;
-            padding: 10px;
-            background-color: #4CAF50;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            border-radius: 5px;
-            font-size: 16px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
             cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
 
         button:hover {
-            background-color: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .form-group.file-upload {
+            position: relative;
+        }
+
+        input[type="file"] {
+            padding: 35px 12px 12px;
+        }
+
+        .file-upload-label {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            z-index: 1;
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: none;
+            border-left: 4px solid #28a745;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: none;
+            border-left: 4px solid #dc3545;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            background: #e3f2fd;
+            color: #1976d2;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .cards-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header {
+                flex-direction: column;
+                text-align: center;
+            }
         }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>Change Manager's Title</h2>
-    <input type="text" id="titleInput" placeholder="Enter new title for the other page">
-    <button onclick="setOtherPageTitle()">Set Title for Manager's Page</button>
-    <h2>Change Teacher's Page's Title</h2>
-    <input type="text" id="titleInput2" placeholder="Enter new title for the other page">
-    <button onclick="setTeacherTitle()">Set Title for Teacher's Page</button>
-    <h2>Change Other Student's Page's Title</h2>
-    <input type="text" id="titleInput3" placeholder="Enter new title for the other page">
-    <button onclick="setStudentTitle()">Set Title for Other Page</button>
+<div class="dashboard">
+    <!-- Header -->
+    <div class="header">
+        <div class="header-icon">
+            <i class="fas fa-code"></i>
+        </div>
+        <div class="header-content">
+            <h1>Developer Dashboard</h1>
+            <p>Manage page titles and upload media resources</p>
+        </div>
+    </div>
 
-     <h2>Upload Your Image</h2>
-    <form action="/upload_image" method="POST" enctype="multipart/form-data">
-        <input type="file" name="image" accept="image/*" required>
-        <button type="submit">Upload</button>
-    </form>
+    <!-- Cards Grid -->
+    <div class="cards-grid">
+        <!-- Manager Title Card -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-icon">
+                    <i class="fas fa-user-tie"></i>
+                </div>
+                <h2 class="card-title">Manager's Page</h2>
+            </div>
+            <div class="success-message" id="successMsg1"></div>
+            <div class="error-message" id="errorMsg1"></div>
+            <div class="form-group">
+                <label for="titleInput">Enter new title</label>
+                <input type="text" id="titleInput" placeholder="e.g., Manager Dashboard">
+            </div>
+            <button onclick="setOtherPageTitle()">
+                <i class="fas fa-check-circle"></i> Update Manager Title
+            </button>
+            <div class="status-badge" id="status1" style="display:none;"></div>
+        </div>
+
+        <!-- Teacher Title Card -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-icon">
+                    <i class="fas fa-chalkboard-user"></i>
+                </div>
+                <h2 class="card-title">Teacher's Page</h2>
+            </div>
+            <div class="success-message" id="successMsg2"></div>
+            <div class="error-message" id="errorMsg2"></div>
+            <div class="form-group">
+                <label for="titleInput2">Enter new title</label>
+                <input type="text" id="titleInput2" placeholder="e.g., Teacher Dashboard">
+            </div>
+            <button onclick="setTeacherTitle()">
+                <i class="fas fa-check-circle"></i> Update Teacher Title
+            </button>
+            <div class="status-badge" id="status2" style="display:none;"></div>
+        </div>
+
+        <!-- Student Title Card -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-icon">
+                    <i class="fas fa-graduation-cap"></i>
+                </div>
+                <h2 class="card-title">Student's Page</h2>
+            </div>
+            <div class="success-message" id="successMsg3"></div>
+            <div class="error-message" id="errorMsg3"></div>
+            <div class="form-group">
+                <label for="titleInput3">Enter new title</label>
+                <input type="text" id="titleInput3" placeholder="e.g., Student Dashboard">
+            </div>
+            <button onclick="setStudentTitle()">
+                <i class="fas fa-check-circle"></i> Update Student Title
+            </button>
+            <div class="status-badge" id="status3" style="display:none;"></div>
+        </div>
+
+        <!-- Image Upload Card -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-icon">
+                    <i class="fas fa-image"></i>
+                </div>
+                <h2 class="card-title">Media Upload</h2>
+            </div>
+            <div class="success-message" id="successMsg4"></div>
+            <div class="error-message" id="errorMsg4"></div>
+            <form action="/upload_image" method="POST" enctype="multipart/form-data" id="uploadForm">
+                <div class="form-group file-upload">
+                    <label for="imageInput" class="file-upload-label">
+                        <i class="fas fa-cloud-upload-alt"></i> Select Image
+                    </label>
+                    <input type="file" id="imageInput" name="image" accept="image/*" required>
+                </div>
+                <button type="submit">
+                    <i class="fas fa-upload"></i> Upload Image
+                </button>
+            </form>
+            <div class="status-badge" id="status4" style="display:none;"></div>
+        </div>
+    </div>
 </div>
 
 <script>
     // Function to set the title in localStorage
     function setOtherPageTitle() {
         var newTitle = document.getElementById('titleInput').value;
+        var successMsg = document.getElementById('successMsg1');
+        var errorMsg = document.getElementById('errorMsg1');
+        var statusBadge = document.getElementById('status1');
+        
         if (newTitle.trim() !== "") {
             localStorage.setItem('otherPageTitle', newTitle);
-            alert("The title of the other page has been set to: " + newTitle);
+            
+            // Show success message
+            successMsg.style.display = 'block';
+            successMsg.innerHTML = '<i class="fas fa-check-circle"></i> Manager title updated successfully!';
+            errorMsg.style.display = 'none';
+            
+            // Show status badge
+            statusBadge.style.display = 'inline-block';
+            statusBadge.innerHTML = '<i class="fas fa-check"></i> ' + newTitle;
+            
+            // Clear input
+            document.getElementById('titleInput').value = '';
+            
+            // Hide message after 4 seconds
+            setTimeout(() => {
+                successMsg.style.display = 'none';
+            }, 4000);
         } else {
-            alert("Please enter a valid title.");
+            errorMsg.style.display = 'block';
+            errorMsg.innerHTML = '<i class="fas fa-exclamation-circle"></i> Please enter a valid title.';
+            successMsg.style.display = 'none';
+            
+            setTimeout(() => {
+                errorMsg.style.display = 'none';
+            }, 4000);
         }
     }
 
     function setTeacherTitle() {
         var newTitle = document.getElementById('titleInput2').value;
+        var successMsg = document.getElementById('successMsg2');
+        var errorMsg = document.getElementById('errorMsg2');
+        var statusBadge = document.getElementById('status2');
 
         if (newTitle.trim() !== "") {
             localStorage.setItem('TeacherTitle', newTitle);
-            alert("The title of the other page has been set to: " + newTitle);
+            
+            // Show success message
+            successMsg.style.display = 'block';
+            successMsg.innerHTML = '<i class="fas fa-check-circle"></i> Teacher title updated successfully!';
+            errorMsg.style.display = 'none';
+            
+            // Show status badge
+            statusBadge.style.display = 'inline-block';
+            statusBadge.innerHTML = '<i class="fas fa-check"></i> ' + newTitle;
+            
+            // Clear input
+            document.getElementById('titleInput2').value = '';
+            
+            // Hide message after 4 seconds
+            setTimeout(() => {
+                successMsg.style.display = 'none';
+            }, 4000);
         } else {
-            alert("Please enter a valid title.");
+            errorMsg.style.display = 'block';
+            errorMsg.innerHTML = '<i class="fas fa-exclamation-circle"></i> Please enter a valid title.';
+            successMsg.style.display = 'none';
+            
+            setTimeout(() => {
+                errorMsg.style.display = 'none';
+            }, 4000);
         }
     }
+
     function setStudentTitle() {
         var newTitle = document.getElementById('titleInput3').value;
+        var successMsg = document.getElementById('successMsg3');
+        var errorMsg = document.getElementById('errorMsg3');
+        var statusBadge = document.getElementById('status3');
 
         if (newTitle.trim() !== "") {
             localStorage.setItem('StudentTitle', newTitle);
-            alert("The title of the other page has been set to: " + newTitle);
+            
+            // Show success message
+            successMsg.style.display = 'block';
+            successMsg.innerHTML = '<i class="fas fa-check-circle"></i> Student title updated successfully!';
+            errorMsg.style.display = 'none';
+            
+            // Show status badge
+            statusBadge.style.display = 'inline-block';
+            statusBadge.innerHTML = '<i class="fas fa-check"></i> ' + newTitle;
+            
+            // Clear input
+            document.getElementById('titleInput3').value = '';
+            
+            // Hide message after 4 seconds
+            setTimeout(() => {
+                successMsg.style.display = 'none';
+            }, 4000);
         } else {
-            alert("Please enter a valid title.");
+            errorMsg.style.display = 'block';
+            errorMsg.innerHTML = '<i class="fas fa-exclamation-circle"></i> Please enter a valid title.';
+            successMsg.style.display = 'none';
+            
+            setTimeout(() => {
+                errorMsg.style.display = 'none';
+            }, 4000);
         }
     }
+
+    // Handle image upload form submission
+    document.getElementById('uploadForm').addEventListener('submit', function(e) {
+        var fileInput = document.getElementById('imageInput');
+        var successMsg = document.getElementById('successMsg4');
+        var errorMsg = document.getElementById('errorMsg4');
+        var statusBadge = document.getElementById('status4');
+        
+        if (fileInput.files.length === 0) {
+            e.preventDefault();
+            errorMsg.style.display = 'block';
+            errorMsg.innerHTML = '<i class="fas fa-exclamation-circle"></i> Please select an image file.';
+            successMsg.style.display = 'none';
+            
+            setTimeout(() => {
+                errorMsg.style.display = 'none';
+            }, 4000);
+        }
+    });
+
+    // Load existing titles from localStorage on page load
+    window.addEventListener('load', function() {
+        const managerTitle = localStorage.getItem('otherPageTitle');
+        const teacherTitle = localStorage.getItem('TeacherTitle');
+        const studentTitle = localStorage.getItem('StudentTitle');
+        
+        if (managerTitle) {
+            document.getElementById('status1').style.display = 'inline-block';
+            document.getElementById('status1').innerHTML = '<i class="fas fa-check"></i> ' + managerTitle;
+        }
+        
+        if (teacherTitle) {
+            document.getElementById('status2').style.display = 'inline-block';
+            document.getElementById('status2').innerHTML = '<i class="fas fa-check"></i> ' + teacherTitle;
+        }
+        
+        if (studentTitle) {
+            document.getElementById('status3').style.display = 'inline-block';
+            document.getElementById('status3').innerHTML = '<i class="fas fa-check"></i> ' + studentTitle;
+        }
+    });
 </script>
 
 </body>

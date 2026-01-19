@@ -1,0 +1,206 @@
+{% extends "admin_dashboard.html" %}
+
+{% block content %}
+
+<style>
+:root{
+  --card-bg:#ffffff;
+  --muted:#6c757d;
+  --primary:#4f46e5; /* indigo */
+  --accent:#22c55e; /* green */
+}
+.dashboard{
+  background:linear-gradient(180deg,#f8fafc, #ffffff);
+  border-radius:16px;
+  padding:20px;
+}
+.dashboard h2{
+  font-weight:700;
+  letter-spacing:.2px;
+}
+.search-wrap{
+  position:sticky; top:0; z-index:2; background:#fff; padding-bottom:10px;
+}
+.card{
+  border:0; border-radius:16px; box-shadow:0 10px 25px rgba(0,0,0,.06);
+}
+.card-header{
+  background:var(--card-bg);
+  border-bottom:1px solid #eef2f7;
+}
+.card-header .btn-link{
+  color:#111827; font-weight:600; text-decoration:none;
+}
+.card-header small{ color:var(--muted); }
+.filters{
+  display:grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap:8px;
+}
+.filters select{
+  border-radius:10px; border:1px solid #e5e7eb; background:#fff;
+}
+.table{
+  border-radius:14px; overflow:hidden;
+}
+.table thead th{
+  background:#f1f5f9; border-bottom:0; font-weight:600; color:#334155;
+}
+.table tbody tr{
+  transition:background .15s ease, transform .05s ease;
+}
+.table tbody tr:hover{
+  background:#f8fafc; transform:translateY(-1px);
+}
+.badge-average{
+  background:#eef2ff; color:#3730a3; border-radius:999px; padding:.25rem .6rem; font-weight:600;
+}
+.action-btn{
+  border-radius:999px;
+}
+.empty{
+  color:var(--muted); padding:18px;
+}
+@media (max-width:576px){
+  .dashboard{ padding:14px; }
+}
+</style>
+
+<div class="dashboard">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="mb-0">Students Examination Records</h2>
+    <span class="text-muted">Overview by class</span>
+  </div>
+
+  <div class="search-wrap mb-3">
+    <input id="searchInput" class="form-control form-control-lg" type="search" placeholder="🔍 Search by name or admission number…">
+  </div>
+
+  <div id="classesContainer">
+    {% if students_by_class %}
+      {% for class_name, students in students_by_class.items() %}
+      <div class="card mb-3">
+        <div class="card-header p-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <h5 class="mb-0">{{ class_name }}</h5>
+              <small>({{ students|length }} students)</small>
+            </div>
+            <span class="badge badge-light">Class</span>
+          </div>
+        </div>
+
+        <div class="card-body">
+          <div class="filters mb-3">
+            <select class="form-control form-control-sm filter-type">
+              <option value="">All Types</option>
+              {% for t in exam_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+            </select>
+            <select class="form-control form-control-sm filter-term">
+              <option value="">All Terms</option>
+              {% for tm in terms %}<option value="{{ tm }}">{{ tm }}</option>{% endfor %}
+            </select>
+            <select class="form-control form-control-sm filter-year">
+              <option value="">All Years</option>
+              {% for y in years %}<option value="{{ y }}">{{ y }}</option>{% endfor %}
+            </select>
+            <select class="form-control form-control-sm filter-sort">
+              <option value="desc">Highest → Lowest</option>
+              <option value="asc">Lowest → Highest</option>
+            </select>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-hover students-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Admission No</th>
+                  <th>Name</th>
+                  <th>Term</th>
+                  <th>Type</th>
+                  <th>Average</th>
+                  <th class="text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for student in students %}
+                <tr data-term="{{ student.term or '' }}" data-type="{{ student.exam_type or '' }}" data-year="{{ student.year or '' }}" data-average="{{ student.average or '' }}">
+                  <td>{{ loop.index }}</td>
+                  <td class="admission">{{ student.admission_no }}</td>
+                  <td class="student-name font-weight-600">{{ student.name }}</td>
+                  <td>{{ student.term or '-' }}</td>
+                  <td>{{ student.exam_type or '-' }}</td>
+                  <td><span class="badge-average">{{ student.average or '-' }}</span></td>
+                  <td class="text-right">
+                    <a class="btn btn-sm btn-outline-primary action-btn" href="{{ url_for('examtrend2', student_id=student.id) }}">View Trend</a>
+                  </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-center empty">No students in this class.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="empty">No records available.</p>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const input = document.getElementById('searchInput');
+  input.addEventListener('input', function () {
+    const term = input.value.trim().toLowerCase();
+    document.querySelectorAll('.students-table tbody tr').forEach(function (row) {
+      if (row.querySelector('td') === null) return;
+      const name = (row.querySelector('.student-name') || {}).textContent || '';
+      const adm = (row.querySelector('.admission') || {}).textContent || '';
+      const match = name.toLowerCase().includes(term) || adm.toLowerCase().includes(term);
+      row.style.display = term ? (match ? '' : 'none') : '';
+    });
+  });
+
+  function applyFilters(card) {
+    const type = (card.querySelector('.filter-type') || {}).value || '';
+    const termVal = (card.querySelector('.filter-term') || {}).value || '';
+    const year = (card.querySelector('.filter-year') || {}).value || '';
+    const sort = (card.querySelector('.filter-sort') || {}).value || 'desc';
+
+    const tbody = card.querySelector('.students-table tbody');
+    if (!tbody) return;
+
+    Array.from(tbody.querySelectorAll('tr')).forEach(function (row) {
+      if (!row.dataset) return;
+      const rowType = (row.dataset.type || '').toString();
+      const rowTerm = (row.dataset.term || '').toString();
+      const rowYear = (row.dataset.year || '').toString();
+
+      let show = true;
+      if (type && rowType !== type) show = false;
+      if (termVal && rowTerm !== termVal) show = false;
+      if (year && rowYear !== year) show = false;
+
+      row.style.display = show ? '' : 'none';
+    });
+
+    const rows = Array.from(tbody.querySelectorAll('tr')).filter(r => r.style.display !== 'none' && r.dataset && r.dataset.average !== undefined);
+    rows.sort((a, b) => {
+      const aVal = parseFloat(a.dataset.average) || 0;
+      const bVal = parseFloat(b.dataset.average) || 0;
+      return sort === 'asc' ? aVal - bVal : bVal - aVal;
+    });
+
+    rows.forEach(r => tbody.appendChild(r));
+  }
+
+  document.querySelectorAll('#classesContainer .card').forEach(card=>{
+    card.querySelectorAll('select').forEach(sel=>sel.addEventListener('change',()=>applyFilters(card)));
+    applyFilters(card);
+  });
+});
+</script>
+
+{% endblock %}

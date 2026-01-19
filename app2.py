@@ -19,6 +19,7 @@ from datetime import datetime
 import logging
 import time
 import graph2
+import pp_compressor
 
 app = Flask(__name__)
 
@@ -87,6 +88,18 @@ def home():
     return render_template('home.html', name=database.get_first_name(admission_no),sname=database.get_last_name(admission_no),email=database.get_email(admission_no),phone = database.get_phone(admission_no), gender= database.get_gender(admission_no),profile_pic = database.get_profile(admission_no),
                            greeting=document_functions.greet_based_on_time(), admission_no=document_functions.replace_slash_with_dot(admission_no),dates=dates, amounts=amounts,remaining_balance=remaining_balance,admission_number= admission_number,\
                            admission_date = database.get_admission_date(admission_number))
+
+
+#============Teachers_dashboard_test
+@app.route('/teachers_dashboard')
+def teachers_dashboard():
+    return render_template('teachers_dashboard.html')
+
+
+
+
+
+
 #=============Update student Qr
 @app.route('/updateQrSt')
 def student_qr():
@@ -143,6 +156,162 @@ def student_scores():
     print(exam_scores)
     return render_template('examtrend.html', exam_scores=exam_scores, student_id=admission_no, student_marks=view_student_marks(), length = len(view_student_marks()),profile_pic = database.get_profile(admission_no),exam_list=exam_list)
 
+
+@app.route('/scores_by_class')
+def scores_by_class():
+    """Render `student_scores.html` with students grouped by class/grade."""
+    conn = sqlite3.connect('student.db')
+    cursor = conn.cursor()
+
+    # Fetch students and their grade
+    cursor.execute('''
+        SELECT s.admission_no, s.first_name, s.last_name, r.Grade
+        FROM students s
+        LEFT JOIN rest r ON s.admission_no = r.admission_no
+        ORDER BY r.Grade, s.last_name
+    ''')
+    rows = cursor.fetchall()
+
+    from collections import defaultdict
+    students_by_class = defaultdict(list)
+
+    for admission_no, first, last, grade in rows:
+        # fetch latest exam summary (if any)
+        cursor.execute('''
+            SELECT term, type, average, year
+            FROM Examinations
+            WHERE admission_no = ?
+            ORDER BY year DESC, term DESC
+            LIMIT 1
+        ''', (admission_no,))
+        exam = cursor.fetchone()
+        term = exam[0] if exam else None
+        exam_type = exam[1] if exam else None
+        average = exam[2] if exam else None
+        year_val = exam[3] if exam and len(exam) > 3 else None
+
+        students_by_class[grade or 'Unassigned'].append({
+            'id': document_functions.replace_slash_with_dot(admission_no),
+            'admission_no': admission_no,
+            'name': f"{first.capitalize()} {last.capitalize()}",
+            'term': term,
+            'exam_type': exam_type,
+            'average': average,
+            'year': year_val
+        })
+
+    conn.close()
+
+    # Sort each class by average descending (None values go last)
+    for k, v in students_by_class.items():
+        v.sort(key=lambda s: (s['average'] is None, -(s['average'] or 0)))
+
+    # Convert defaultdict to regular dict for the template
+    students_by_class = dict(students_by_class)
+
+    # profile_pic for current user if available
+    username = session.get('userName')
+    admin = document_functions.replace_slash_with_dot(username) if username else None
+    print(f"the admin is :{admin}")
+    profile_pic = database.get_profile_t(admin) if admin else None
+
+    # collect distinct filter values from Examinations table
+    conn = sqlite3.connect('student.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT DISTINCT type FROM Examinations')
+    exam_types = sorted([r[0] for r in cursor.fetchall() if r[0]])
+    cursor.execute('SELECT DISTINCT term FROM Examinations')
+    terms = sorted([r[0] for r in cursor.fetchall() if r[0]])
+    cursor.execute('SELECT DISTINCT year FROM Examinations')
+    years = sorted([r[0] for r in cursor.fetchall() if r[0]], reverse=True)
+    conn.close()
+
+    # subjects list from database module if available
+    try:
+        subjects = database.subject
+    except Exception:
+        subjects = []
+
+    return render_template('student_scores.html', admin=admin, students_by_class=students_by_class, profile_pic=profile_pic, exam_types=exam_types, terms=terms, years=years, subjects=subjects)
+
+
+@app.route('/examtrend/<student_id>')
+def examtrend(student_id):
+    # keep the incoming id (dot-encoded) for display/URL, but convert back for DB queries
+    display_student_id = student_id
+    admission_no = document_functions.replace_slash_with_slash(student_id)
+    """Render exam trend for a given student (used by the class listing)."""
+    conn = sqlite3.connect('student.db')
+    cursor = conn.cursor()
+
+    # Get the current year and calculate the past four years
+    current_year = datetime.now().year
+    years = [current_year - i for i in range(4)]
+
+    query = '''
+        SELECT year, term, average
+        FROM Examinations
+        WHERE admission_no = ? AND year <= ?
+        ORDER BY year, term
+    '''
+    cursor.execute(query, (admission_no, current_year))
+    rows = cursor.fetchall()
+    conn.close()
+
+    exam_scores = {str(year): [] for year in years}
+    for row in rows:
+        year, term, average = row
+        exam_scores.setdefault(str(year), []).append(average)
+
+    exam_scores = {year: avg for year, avg in exam_scores.items() if avg}
+    exam_list = database.get_exam_type(admission_no)
+
+    # try to get student marks if function exists
+    try:
+        student_marks = view_student_marks()
+    except Exception:
+        student_marks = []
+
+    return render_template('examtrend.html', base_template='admin_dashboard.html', exam_scores=exam_scores, student_id=display_student_id, student_marks=student_marks, length=len(student_marks), profile_pic=database.get_profile(admission_no), exam_list=exam_list)
+
+@app.route('/examtrend2/<student_id>')
+def examtrend2(student_id):
+    # keep the incoming id (dot-encoded) for display/URL, but convert back for DB queries
+    display_student_id = student_id
+    admission_no = document_functions.replace_slash_with_slash(student_id)
+    """Render exam trend for a given student (used by the class listing)."""
+    conn = sqlite3.connect('student.db')
+    cursor = conn.cursor()
+
+    # Get the current year and calculate the past four years
+    current_year = datetime.now().year
+    years = [current_year - i for i in range(4)]
+
+    query = '''
+        SELECT year, term, average
+        FROM Examinations
+        WHERE admission_no = ? AND year <= ?
+        ORDER BY year, term
+    '''
+    cursor.execute(query, (admission_no, current_year))
+    rows = cursor.fetchall()
+    conn.close()
+
+    exam_scores = {str(year): [] for year in years}
+    for row in rows:
+        year, term, average = row
+        exam_scores.setdefault(str(year), []).append(average)
+
+    exam_scores = {year: avg for year, avg in exam_scores.items() if avg}
+    exam_list = database.get_exam_type(admission_no)
+
+    # try to get student marks if function exists
+    try:
+        student_marks = view_student_marks2(admission_no)
+    except Exception:
+        student_marks = []
+
+    return render_template('examtrend2.html', base_template='admin_dashboard.html', exam_scores=exam_scores, student_id=display_student_id, student_marks=student_marks, length=len(student_marks), profile_pic=database.get_profile(admission_no), exam_list=exam_list)
 
 @app.route('/settings')
 def settings():
@@ -205,8 +374,22 @@ def submit_check():
     database.insert_marks(document_functions.replace_slash_with_slash(request.form['admission_no']), marks_list)
 
 
+class_mapping1 = {
+    "1": "grade1",
+    "2": "grade2",
+    "3": "grade3",
+    "4": "grade4",
+    "5": "grade5",
+    "6": "grade6",
+    "7": "Form1",
+    "8": "Form2",
+    "9": "Form3",
+    "10": "Form4",
+    "11": "Form5",
+    "12": "Form6",
+}
 class_mapping = {
-    "1": "Grade 1",
+     "1": "Grade 1",
     "2": "Grade 2",
     "3": "Grade 3",
     "4": "Grade 4",
@@ -218,20 +401,6 @@ class_mapping = {
     "10": "Form 4",
     "11": "Form 5",
     "12": "Form 6",
-}
-class_mapping1 = {
-    "1": "grade1",
-    "2": "grade2",
-    "3": "grade3",
-    "4": "grade4",
-    "5": "grade5",
-    "6": "grade6",
-    "7": "form1",
-    "8": "form2",
-    "9": "form3",
-    "10": "form4",
-    "11": "form5",
-    "12": "form6",
 }
 
 @app.route("/type_check2")
@@ -246,9 +415,12 @@ def teacher_classes():
     conn.close()
 
     if result:
-        subject_numbers = result[0].split(",")  # Convert "4,5,6" to ["4", "5", "6"]
-        class_options = {num: class_mapping[num] for num in subject_numbers if num in class_mapping}
-
+        subject_numbers = [num.strip() for num in result[0].split(",")]
+        class_options = {
+            num: class_mapping[num]
+            for num in subject_numbers
+            if num in class_mapping
+        }
     else:
         class_options = {}
 
@@ -282,7 +454,7 @@ def view_students():
     term = int(request.form['term'])
     exam_type = request.form['type']
     grade = request.form['class']
-    data = database.get_students_marks_filtered(year, term, exam_type, grade)
+    data = database.get_students_marks_filtered(year, term, exam_type, class_mapping1[grade])
     print(f"the data is:{data}")
     return render_template('exam_list.html', students=data)
 
@@ -296,6 +468,7 @@ def enter_student_marks(admission_no):
     database.insert_time(admission_n, year, term, exam_type)
 
     return render_template('enter_marks.html', admission_no=admission_n,year=year,exam_type=exam_type, term=term)
+
 
 
 @app.route('/view_students_marks')
@@ -449,10 +622,23 @@ def save_user_data(username, user_data):
 
 
 # Route for user profile
+@app.route('/manager_profile', methods=['POST'])
+def manager_profile():
+    username = session.get('username')
+    image_file = request.files.get('profile_pic')
+   # pp_compressor.compress_profile_image(image_file, f"{admission_no}.webp")
+
+    if image_file:
+        profile1.insert_image_m('manager.db', username, image_file)
+        return redirect(url_for('msetting'))
+    else:
+        return "No image selected!", 400
+
 @app.route('/profile', methods=['POST'])
 def profile():
     admission_no = request.form.get('admission_no')
     image_file = request.files.get('profile_pic')
+   # pp_compressor.compress_profile_image(image_file, f"{admission_no}.webp")
 
     if image_file:
         profile1.insert_image('student.db', admission_no, image_file)
@@ -464,6 +650,7 @@ def profile():
 def tprofile():
     username = request.form.get('username')
     image_file = request.files.get('profile_pic')
+
 
     if image_file:
         profile1.insert_image_t('admin.db', username, image_file)
@@ -477,6 +664,12 @@ def tsetting():
     username = session.get('userName')
     profile_pic = database.get_profile_t(username)
     return render_template('tsetting.html',profile_pic=profile_pic, username = username)
+
+@app.route('/msetting')
+def msetting():
+    username = session.get('username')
+    profile_pic = database.get_aprofile(username)
+    return render_template('manager_settings.html',profile_pic=profile_pic, username = username)
 
 @app.route("/tphone_number_update", methods=['GET', 'POST'])
 def tphone_number_update():
@@ -1114,6 +1307,17 @@ def view_student_marks():
         ''',(admission_no,))
     result = cursor.fetchall()
     return result
+
+def view_student_marks2(admission_no):
+    with sqlite3.connect('student.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+        SELECT * FROM Examinations
+        WHERE admission_no = ?
+        ''',(admission_no,))
+    result = cursor.fetchall()
+    return result
+
 #===========================================Change Student Logins
 @app.route('/students_logins', methods=['GET', 'POST'])
 def show_students():
@@ -1415,24 +1619,59 @@ def delete_student_ncs(admission_no):
     return redirect('/non_compliant_students', profile_pic=profile_pic)
 
 
+from flask import redirect, url_for, request, session
+import sqlite3
+
 @app.route('/update-status/<admission_no>', methods=['POST'])
 def update_status(admission_no):
     username = session.get('username')
+    if not username:
+        return redirect(url_for('login'))
+
     username = document_functions.replace_slash_with_dot(username)
-    profile_pic = database.get_aprofile(username)
-    admission_number=document_functions.replace_slash_with_slash(admission_no)
-    new_status = request.form['status']
+    admission_number = document_functions.replace_slash_with_slash(admission_no)
+
+    new_status = request.form.get('status')
+    if not new_status:
+        return redirect(url_for('non_compliant_students'))
+
+    with sqlite3.connect('student.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE non_compliant SET status = ? WHERE admission_no = ?",
+            (new_status, admission_number)
+        )
+        conn.commit()
+
+    return redirect(url_for('non_compliant_students'))
+
+@app.route('/update-student', methods=['POST'])
+def update_student():
+    data = request.get_json()
+
+    admission_no = data.get('admission_no')
+    last_name = data.get('last_name')
+    student_class = data.get('send_date')
+
+    duration = data.get('duration')
+    reason = data.get('status')
+    status = data.get('status')
+
+    if not all([admission_no, name, student_class, status]):
+        return jsonify({'success': False, 'error': 'All fields are required'}), 400
 
     with sqlite3.connect('student.db') as conn:
         cursor = conn.cursor()
         cursor.execute("""
             UPDATE non_compliant
-            SET status = ?
+            SET first_name = ?, last_name = ?, send_date = ?, duration = ?, reason = ?, status = ?
             WHERE admission_no = ?
-        """, (new_status, admission_number))
+        """, (send_date, duration, reason, status, admission_no))
         conn.commit()
 
-    return redirect('/non_compliant_students', profile_pic=profile_pic)
+    return jsonify({'success': True})
+
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -1646,6 +1885,8 @@ def forgot_password():
 @app.route("/password_reset")
 def password_reset():
     return render_template("password_reset.html")
+
+
 
 if __name__ == '__main__':
     if not os.path.exists('static/uploads'):

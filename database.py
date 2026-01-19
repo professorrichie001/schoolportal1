@@ -450,8 +450,6 @@ def get_profile_t(username: str) -> str:
 #     # Close the connection
 #     conn.close()
 #     return processed_students
-
-    grade_list = ['form1', 'form3', 'form4']
 def view_students(grade_list):
     # Connect to the SQLite database
     conn = sqlite3.connect('student.db')

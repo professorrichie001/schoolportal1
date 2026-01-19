@@ -19,10 +19,10 @@
 
     <!-- Custom styles for this template-->
     <link href="/static/css/sb-admin-2.min.css" rel="stylesheet">
-
+<link rel="shortcut icon" type="image/png" href="{{ url_for('static', filename='images/your_uploaded_image.jpg') }}" />
     <link rel="stylesheet" href="/static/css/style.css">
     <style>
-   
+
 h1, h2 {
     color: #2c3e50;
     margin-bottom: 10px;
@@ -31,7 +31,7 @@ h1, h2 {
 
 
 .dashboard {
-    
+
     animation: fadeInUp 0.8s ease;
 }
 
@@ -97,6 +97,23 @@ button:hover {
     to { opacity: 1; transform: translateY(0); }
 }
 
+/* Logo responsive sizing */
+.nav-logo {
+    object-fit: contain;
+}
+
+@media (max-width: 768px) {
+    .nav-logo {
+        max-width: 90px;
+    }
+}
+
+@media (max-width: 480px) {
+    .nav-logo {
+        max-width: 90px;
+    }
+}
+
 /* Responsive */
 @media (max-width: 600px) {
     .dashboard {
@@ -128,9 +145,9 @@ button:hover {
             <!-- Sidebar - Brand -->
              <br>
             <a class="sidebar-brand d-flex align-items-center justify-content-center" href="#">
-                
+
                         <img src="{{ url_for('static', filename='images/your_uploaded_image.jpg') }}" alt="Logo" class="nav-logo">
-                    
+
             </a>
 <br><br>
             <!-- Divider -->
@@ -148,23 +165,21 @@ button:hover {
 
             <!-- Heading -->
             <div class="sidebar-heading">
-                Interface
+
             </div>
 
             <!-- Nav Item - Pages Collapse Menu -->
             <li class="nav-item">
                 <a class="nav-link collapsed" href="{{ url_for('view_memo') }}">
-                    <i class=" "></i>
-                    <i class="fa fa-cog" aria-hidden="true"></i>
+                    <i class="fas fa-fw fa-bullhorn"></i>
                     <span>Memos or Announcements</span>
                 </a>
-                
             </li>
 
             <!-- Nav Item - Utilities Collapse Menu -->
             <li class="nav-item">
                 <a class="nav-link collapsed" href="/history" >
-                    <i class="fas fa-fw fa-wrench"></i>
+                    <i class="fas fa-fw fa-receipt"></i>
                     <span>Payment History</span>
                 </a>
             </li>
@@ -174,13 +189,13 @@ button:hover {
 
             <!-- Heading -->
             <div class="sidebar-heading">
-                Addons
+
             </div>
 
             <!-- Nav Item - Pages Collapse Menu -->
             <li class="nav-item">
                 <a class="nav-link collapsed" href="{{ url_for('my_fee_payment') }}">
-                    <i class="fas fa-fw fa-folder"></i>
+                    <i class="fas fa-fw fa-money-bill-wave"></i>
                     <span>Pay Fees</span>
                 </a>
             </li>
@@ -195,22 +210,22 @@ button:hover {
             <!-- Nav Item - Tables -->
             <li class="nav-item">
                 <a class="nav-link" href="{{ url_for('student_qr') }}">
-                    <i class="fas fa-fw fa-table"></i>
+                    <i class="fas fa-fw fa-qrcode"></i>
                     <span>Qrcode</span></a>
             </li>
             <li class="nav-item">
                 <a class="nav-link" href="{{ url_for('settings') }}">
-                    <i class="fas fa-fw fa-table"></i>
+                    <i class="fa fa-cog" aria-hidden="true"></i>
                     <span>Settings</span></a>
             </li>
             <li class="nav-item">
                 <a class="nav-link" href="{{ url_for('change_password') }}">
-                    <i class="fas fa-fw fa-table"></i>
+                    <i class="fas fa-fw fa-wrench"></i>
                     <span>Password</span></a>
             </li>
             <li class="nav-item">
                 <a class="nav-link" href="{{ url_for('logout') }}">
-                    <i class="fas fa-fw fa-table"></i>
+                    <i class="fas fa-fw fa-sign-out-alt"></i>
                     <span>Log Out</span></a>
             </li>
 
@@ -263,7 +278,7 @@ button:hover {
 
                         <!-- Nav Item - Search Dropdown (Visible Only XS) -->
                         <li class="nav-item dropdown no-arrow d-sm-none">
-                            
+
                             <!-- Dropdown - Messages -->
                             <div class="dropdown-menu dropdown-menu-right p-3 shadow animated--grow-in"
                                 aria-labelledby="searchDropdown">
@@ -283,9 +298,9 @@ button:hover {
                         </li>
 
                         <!-- Nav Item - Alerts -->
-                        
+
                         <!-- Nav Item - Messages -->
-                        
+
 
                         <div class="topbar-divider d-none d-sm-block"></div>
 
@@ -293,16 +308,16 @@ button:hover {
                         <li class="nav-item dropdown no-arrow">
                             <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
                                 data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                
+
                                 <img class="img-profile rounded-circle"
                                     src="{{ profile_pic }}">
                             </a>
                             <!-- Dropdown - User Information -->
                             <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in"
                                 aria-labelledby="userDropdown">
-                                
-                                
-                                
+
+
+
                                 <div class="dropdown-divider"></div>
                                 <a class="dropdown-item" href="#" data-toggle="modal" data-target="#logoutModal">
                                     <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i>
@@ -320,14 +335,14 @@ button:hover {
                 {% block content %}{% endblock %}
                 <!-- /.container-fluid -->
 
-            
+
             <!-- End of Main Content -->
 
             <!-- Footer -->
             <footer class="sticky-footer bg-white">
                 <div class="container my-auto">
                     <div class="copyright text-center my-auto">
-                        <span>Copyright &copy; Your Website 2021</span>
+                        <span>Copyright &copy; Your Website 2026</span>
                     </div>
                 </div>
             </footer>

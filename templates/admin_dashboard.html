@@ -1,105 +1,157 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lecturer Dashboard</title>
-    <!-- -------Styles------- -->
-     <link rel="stylesheet" href="static/css/style1.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>School Portal</title>
+  <link rel="shortcut icon" type="image/png" href="{{ url_for('static', filename='images/your_uploaded_image.jpg') }}" />
+  <link rel="stylesheet" href="static/assets/css/styles.min.css" />
+    <link rel="stylesheet" href="static/assets/css/n.css" />
+<!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
 </head>
+
 <body>
-     <!-- ---------------Navigation Bar----------------- -->
-    <div class="container">
-        <div class="navigation ">
-            <ul>
-                <li>
-                    <a href="#">
-                        <img src="{{ url_for('static', filename='images/your_uploaded_image.jpg') }}" alt="Uploaded Logo">
+  <!--  Body Wrapper -->
+  <div class="page-wrapper" id="main-wrapper" data-layout="vertical" data-navbarbg="skin6" data-sidebartype="full"
+    data-sidebar-position="fixed" data-header-position="fixed">
+    <!-- Sidebar Start -->
+    <aside class="left-sidebar">
+      <!-- Sidebar scroll-->
+      <div>
+        <div class="brand-logo d-flex align-items-center justify-content-between">
+          <a href="#" class="text-nowrap logo-img">
+              <img src="{{ url_for('static', filename='images/your_uploaded_image.jpg') }}" alt="Uploaded Logo">
+          </a>
+          <div class="close-btn d-xl-none d-block sidebartoggler cursor-pointer" id="sidebarCollapse">
+            <ion-icon name="close"></ion-icon>
 
-                    </a>
-                </li>
+          </div>
+        </div>
+        <!-- Sidebar navigation-->
+        <nav class="sidebar-nav scroll-sidebar" data-simplebar="">
+          <ul id="sidebarnav">
+            <li class="nav-small-cap">
 
-                <li>
-                    <a href="{{url_for('teacher_home')}}">
-                        <span class="icon"><ion-icon name="home-outline"></ion-icon></span>
-                        <span class="title">Dashboard</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="#">
-                        <span class="icon"><ion-icon name="newspaper-outline"></ion-icon></span>
-                        <span class="title">student_scores</span>
-                    </a>
-                </li>
-                 <li>
-                   <a href="{{ url_for('type_check') }}">
-                        <span class="icon"><ion-icon name="clipboard"></ion-icon></span>
-                        <span class="title">View Exam scores</span>
-                    </a>
-                </li>
-                <li>
-                   <a href="{{ url_for('view_students_marks') }}">
-                        <span class="icon"><ion-icon name="clipboard"></ion-icon></span>
-                        <span class="title">Set Exam scores</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="{{url_for('tsetting')}}">
-                        <span class="icon"><ion-icon name="settings-outline"></ion-icon></span>
-                        <span class="title">Settings</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="#">
-                        <span class="icon"><ion-icon name="lock-closed-outline"></ion-icon></span>
-                        <span class="title">Change Password</span>
-                    </a>
 
-                </li>
-                <li>
-                    <a href="{{ url_for('logout') }}">
-                        <span class="icon"><ion-icon name="log-out-outline"></ion-icon></span>
-                        <span class="title">Log Out</span>
-                    </a>
+              <span class="hide-menu">Home</span>
+            </li>
+            <li class="sidebar-item">
+              <a class="sidebar-link" href="{{url_for('teacher_home')}}" aria-expanded="false">
+                <span class="icon"><ion-icon name="home"></ion-icon></span>
+                <span class="hide-menu"> Dashboard</span>
+              </a>
+            </li>
 
-                </li>
+            <li class="nav-small-cap">
+              <i class="ti ti-dots nav-small-cap-icon fs-4"></i>
+              <span class="hide-menu">Data</span>
+            </li>
 
+            <li class="sidebar-item">
+              <a class="sidebar-link" href="{{ url_for('scores_by_class') }}" aria-expanded="false">
+                <span class="icon"><ion-icon name="newspaper-outline"></ion-icon></span>
+                <span class="hide-menu">Student Scores</span>
+              </a>
+            </li>
+
+            <li class="sidebar-item">
+              <a class="sidebar-link" href="{{ url_for('type_check') }}" aria-expanded="false">
+                     <span class="icon"><ion-icon name="clipboard"></ion-icon></span>
+                <span class="hide-menu">View Exam scores</span>
+              </a>
+            </li>
+
+            <li class="sidebar-item">
+              <a class="sidebar-link" href="{{ url_for('view_students_marks') }}" aria-expanded="false">
+                <span class="icon"><ion-icon name="clipboard"></ion-icon></span>
+                <span class="hide-menu">Set Exam Scores</span>
+              </a>
+            </li>
+
+            <li class="sidebar-item">
+              <a class="sidebar-link" href="{{url_for('tsetting')}}" aria-expanded="false">
+                <span class="icon"><ion-icon name="settings-outline"></ion-icon></span>
+                <span class="hide-menu">Settings</span>
+              </a>
+            </li>
+
+
+            <li class="sidebar-item">
+              <a class="sidebar-link" href="#" aria-expanded="false">
+                <span class="icon"><ion-icon name="lock-closed-outline"></ion-icon></span>
+                <span class="hide-menu">Change Password</span>
+              </a>
+            </li>
+
+
+            <li class="sidebar-item">
+              <a class="sidebar-link" href="{{ url_for('logout') }}" aria-expanded="false">
+                 <span class="icon"><ion-icon name="log-out-outline"></ion-icon></span>
+                <span class="hide-menu">Logout</span>
+              </a>
+            </li>
+
+          </ul>
+
+        </nav>
+        <!-- End Sidebar navigation -->
+      </div>
+      <!-- End Sidebar scroll-->
+    </aside>
+    <!--  Sidebar End -->
+    <!--  Main wrapper -->
+    <div class="body-wrapper">
+      <!--  Header Start -->
+      <header class="app-header">
+        <nav class="navbar navbar-expand-lg navbar-light">
+          <ul class="navbar-nav">
+            <li class="nav-item d-block d-xl-none">
+              <a class="nav-link sidebartoggler nav-icon-hover" id="headerCollapse" href="javascript:void(0)">
+                <ion-icon name="menu-outline"></ion-icon>
+
+              </a>
+            </li>
+
+          </ul>
+          <div class="navbar-collapse justify-content-end px-0" id="navbarNav">
+            <ul class="navbar-nav flex-row ms-auto align-items-center justify-content-end">
+
+              <li class="nav-item dropdown">
+                <a class="nav-link nav-icon-hover" href="javascript:void(0)" id="drop2" data-bs-toggle="dropdown"
+                  aria-expanded="false">
+                  <img src="{{profile_pic}}" alt="" width="35" height="35" class="rounded-circle">
+                </a>
+
+              </li>
             </ul>
-        </div>
-        <!-- -------- Main ------------- -->
-    </div>
-    <!-- -------Scripts------- -->
-<!--     <script src="assets/js/main.js"></script>-->
-     <div class="main">
-        <div class="topbar">
-            <div class="toggle">
-                <ion-icon class="Menu" name="menu"></ion-icon>
-            </div>
-
-            <div class="user">
-                <img src="{{profile_pic}}" alt="profile picture">
-            </div>
-
-        </div>
-
+          </div>
+        </nav>
+      </header>
+      <!--  Header End -->
+      <div class="container-fluid">
+        <!--  Row 1 -->
 {% block content %}{% endblock %}
 
-     </div>
-<script src="/static/js/main.js"></script>
 
-    <!---------------Ionicons------------------------>
-    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
-<script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
-    <script>
-    // On page load, check if the other page's title is stored in localStorage
-    window.onload = function() {
-        var savedTitle = localStorage.getItem('TeacherTitle');
-        if (savedTitle) {
-            document.title = savedTitle; // Change the title if found in localStorage
-        }
-    }
-</script>
+        <div class="py-6 px-6 text-center">
+          <p class="mb-0 fs-4">Design and Developed by <a href="theinnovator.pythonanywhere.com" target="_blank" class="pe-1 text-primary text-decoration-underline">Crimsons.</a> Distributed by Crimsons</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="static/assets/libs/jquery/jquery.min.js"></script>
+  <script src="static/assets/libs/bootstrap.bundle.min.js"></script>
+  <script src="static/assets/js/sidebarmenu.js"></script>
+  <script src="static/assets/js/app.min.js"></script>
+  <script src="static/assets/libs/apexcharts/apexcharts.min.js"></script>
+  <script src="static/assets/libs/simplebar/simplebar.js"></script>
+  <script src="static/assets/js/dashboard.js"></script>
+  <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+  <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
 
 </body>
+
 </html>

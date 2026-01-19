@@ -1,0 +1,176 @@
+.icon ion-icon {
+  font-size: 29px;
+}
+/* =====================
+   GLOBAL STYLES
+===================== */
+:root {
+  --primary: #4f46e5;
+  --secondary: #22c55e;
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --radius: 14px;
+  --shadow: 0 10px 25px rgba(0,0,0,.08);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* =====================
+   CHART SECTION
+===================== */
+.dashboard {
+  padding: 1.5rem;
+}
+
+.chart-container {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+  margin-bottom: 2rem;
+  transition: transform .3s ease;
+}
+
+.chart-container:hover {
+  transform: translateY(-4px);
+}
+
+/* =====================
+   RESULTS CONTAINER
+===================== */
+.container {
+  max-width: 1100px;
+  margin: auto;
+  padding-bottom: 3rem;
+}
+
+h5 {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+/* =====================
+   DESKTOP TABLE
+===================== */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--card);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+thead {
+  background: linear-gradient(135deg, var(--primary), #6366f1);
+  color: white;
+}
+
+th, td {
+  padding: 14px 16px;
+  text-align: left;
+}
+
+tbody tr {
+  border-bottom: 1px solid #e5e7eb;
+}
+
+tbody tr:hover {
+  background: #f1f5f9;
+}
+
+th {
+  font-weight: 600;
+}
+
+tbody tr:last-child {
+  font-weight: bold;
+  background: #eef2ff;
+}
+
+/* =====================
+   MOBILE CARDS
+===================== */
+.marks-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  animation: fadeUp .4s ease;
+}
+
+.marks-card div {
+  display: flex;
+  justify-content: space-between;
+  padding: .5rem 0;
+  border-bottom: 1px dashed #e5e7eb;
+}
+
+.marks-card div:last-child {
+  border-bottom: none;
+}
+
+.marks-card strong {
+  color: var(--muted);
+}
+
+.marks-card span {
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.marks-card hr {
+  margin: .8rem 0;
+}
+
+/* =====================
+   RESPONSIVENESS
+===================== */
+.desktop-only {
+  display: block;
+}
+
+.mobile-only {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .desktop-only {
+    display: none;
+  }
+
+  .mobile-only {
+    display: block;
+  }
+
+  h5 {
+    font-size: 1rem;
+  }
+
+  .chart-container {
+    padding: 1rem;
+  }
+}
+
+/* =====================
+   ANIMATIONS
+===================== */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

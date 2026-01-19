@@ -1,5 +1,37 @@
 import sqlite3
 
+def insert_image_m(db_path, username, image_file):
+    if image_file and image_file.filename:
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+
+            image_data = image_file.read()
+
+            cursor.execute("""
+                UPDATE manager
+                SET profile_picture = ?
+                WHERE manager_id = (
+                    SELECT manager_id
+                    FROM logins
+                    WHERE username = ?
+                );
+            """, (image_data, username))
+
+            conn.commit()
+
+            if cursor.rowcount == 0:
+                print("No manager found for this username")
+
+            conn.close()
+            print("Image inserted successfully!")
+
+        except Exception as e:
+            print("Error inserting image:", e)
+    else:
+        print("No image file provided!")
+
+
 def insert_image(db_path, admission_no, image_file):
     if image_file and image_file.filename:
         try:
@@ -10,7 +42,7 @@ def insert_image(db_path, admission_no, image_file):
             image_data = image_file.read()  # Directly read from the file object
 
             # Update the image where admission_no matches
-            cursor.execute("UPDATE students SET profile_pic = ? WHERE admission_no = ?", 
+            cursor.execute("UPDATE students SET profile_pic = ? WHERE admission_no = ?",
                            (image_data, admission_no))
 
             conn.commit()
@@ -31,7 +63,7 @@ def insert_image_t(db_path, username, image_file):
             image_data = image_file.read()  # Directly read from the file object
 
             # Update the image where admission_no matches
-            cursor.execute("UPDATE admin_data SET profile_picture = ? WHERE position = ?", 
+            cursor.execute("UPDATE admin_data SET profile_picture = ? WHERE position = ?",
                            (image_data, username))
 
             conn.commit()

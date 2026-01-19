@@ -1,17 +1,16 @@
 {% extends "trainer.html" %}
 {% block content %}
 <link rel="stylesheet" href="static/css/non_compliant_students.css">
-
+<br><br><br><br><br>
 <div class="container-noncompliant">
   <div class="page-hero d-flex justify-content-between align-items-center">
-    <br>
-    <br><br><br>
+
     <div>
       <h2>Non-Compliant Students</h2>
       <p class="small mb-0">Manage records of students who are non-compliant — update status, edit or remove entries.</p>
     </div>
     <div class="ms-3 w-50">
-      <input id="searchInput" class="form-control" type="search" placeholder="Search (Admission No, First/Last Name, Reason, Duration)...">
+      <input id="searchInput" class="form-control" type="search" placeholder="Search ...">
     </div>
   </div>
 
@@ -33,34 +32,37 @@
       </thead>
       <tbody id="tableBody">
         {% for student in students %}
-        <tr>
-          <td>{{ student[0] }}</td>
-          <td>{{ student[1] }}</td>
-          <td>{{ student[2] }}</td>
-          <td>{{ student[3] }}</td>
-          <td>{{ student[4] }}</td>
-          <td>{{ student[5] }}</td>
-          <td>{{ student[6] }}</td>
-          <td>{{ student[7] }}</td>
-          <td>
-            <form action="/update-status/{{ student[0] }}" method="POST" class="d-flex update-action align-items-center">
-              <select name="status" class="form-select form-select-sm me-2">
-                <option value="Reported" {% if student[7] == 'Reported' %}selected{% endif %}>Reported</option>
-                <option value="Pending" {% if student[7] == 'Pending' %}selected{% endif %}>Pending</option>
-                <option value="Absent" {% if student[7] == 'Absent' %}selected{% endif %}>Absent</option>
-              </select>
-              <button type="submit" class="btn btn-sm btn-outline-primary update-btn">Update</button>
-            </form>
-          </td>
-          <td>
-            <div class="d-flex align-items-center">
-              <form action="/delete-student1/{{ student[0] }}" method="POST" style="display:inline;">
-                <button type="submit" class="btn btn-sm btn-danger delete-btn">Delete</button>
-              </form>
-              <a href="/edit-student/{{ student[0] }}" class="btn btn-sm btn-secondary ms-2 edit-btn">Edit</a>
-            </div>
-          </td>
-        </tr>
+        <tr data-admission-no="{{ student[0] }}">
+  <td class="admission_no">{{ student[0] }}</td>
+  <td class="first_name">{{ student[1] }}</td>
+  <td class="last_name">{{ student[2] }}</td>
+  <td class="reason">{{ student[3] }}</td>
+  <td class="duration">{{ student[4] }}</td>
+  <td class="send_date">{{ student[5] }}</td>
+  <td class="return_date">{{ student[6] }}</td>
+  <td class="status">{{ student[7] }}</td>
+  <td>
+    <form action="/update-status/{{ student[0] }}" method="POST" class="d-flex update-action align-items-center">
+      <select name="status" class="form-select form-select-sm me-2">
+        <option value="Reported" {% if student[7] == 'Reported' %}selected{% endif %}>Reported</option>
+        <option value="Pending" {% if student[7] == 'Pending' %}selected{% endif %}>Pending</option>
+        <option value="Absent" {% if student[7] == 'Absent' %}selected{% endif %}>Absent</option>
+      </select>
+      <button type="submit" class="btn btn-sm btn-outline-primary update-btn">Update</button>
+    </form>
+  </td>
+  <td>
+    <div class="d-flex align-items-center">
+      <form action="/delete-student1/{{ student[0] }}" method="POST" style="display:inline;">
+        <button type="submit" class="btn btn-sm btn-danger delete-btn">Delete</button>
+      </form>
+      <button class="btn btn-sm btn-primary edit-btn" onclick="editRow(this)">✏ Edit</button>
+      <button class="btn btn-sm btn-success save-btn d-none" onclick="saveRow(this)">💾 Save</button>
+      <button class="btn btn-sm btn-secondary cancel-btn d-none" onclick="cancelEdit(this)">✖ Cancel</button>
+    </div>
+  </td>
+</tr>
+
         {% endfor %}
       </tbody>
     </table>
@@ -130,5 +132,81 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 });
 </script>
+<script>
+function editRow(button) {
+  const row = button.closest('tr');
+
+  // Hide Edit button, show Save and Cancel buttons
+  row.querySelector('.edit-btn').classList.add('d-none');
+  row.querySelector('.save-btn').classList.remove('d-none');
+  row.querySelector('.cancel-btn').classList.remove('d-none');
+
+  // Define columns that are editable, skip actions & update status
+  const editableClasses = ['first_name', 'last_name', 'reason', 'duration', 'send_date', 'return_date', 'status'];
+
+  editableClasses.forEach(cls => {
+    const td = row.querySelector(`td.${cls}`);
+    const value = td.innerText.trim();
+
+    if (cls === 'status') {
+      td.innerHTML = `
+        <select class="form-select form-select-sm">
+          <option value="Reported" ${value === 'Reported' ? 'selected' : ''}>Reported</option>
+          <option value="Pending" ${value === 'Pending' ? 'selected' : ''}>Pending</option>
+          <option value="Absent" ${value === 'Absent' ? 'selected' : ''}>Absent</option>
+        </select>
+      `;
+    } else if (cls === 'send_date' || cls === 'return_date') {
+      td.innerHTML = `<input type="date" class="form-control form-control-sm" value="${value}">`;
+    } else if (cls === 'duration') {
+      // Use a text input for duration (you can customize as needed)
+      td.innerHTML = `<input type="text" class="form-control form-control-sm" value="${value}">`;
+    } else {
+      td.innerHTML = `<input type="text" class="form-control form-control-sm" value="${value}">`;
+    }
+  });
+}
+
+function cancelEdit(button) {
+  // For simplicity, reload page to cancel editing
+  location.reload();
+}
+
+function saveRow(button) {
+  const row = button.closest('tr');
+  const admissionNo = row.dataset.admissionNo;
+
+  const data = {
+    admission_no: admissionNo,
+    first_name: row.querySelector('td.first_name input').value,
+    last_name: row.querySelector('td.last_name input').value,
+    reason: row.querySelector('td.reason input').value,
+    duration: row.querySelector('td.duration input').value,
+    send_date: row.querySelector('td.send_date input').value,
+    return_date: row.querySelector('td.return_date input').value,
+    status: row.querySelector('td.status select').value
+  };
+
+  fetch('/update-student', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  .then(res => res.json())
+  .then(resp => {
+    if (resp.success) {
+      alert('Student updated successfully!');
+      location.reload();
+    } else {
+      alert('Error: ' + resp.error);
+    }
+  })
+  .catch(err => {
+    alert('Network error');
+  });
+}
+
+</script>
+
 
 {% endblock %}
