@@ -25,18 +25,53 @@
 {% endif %}
 <form action="/submit_marks" method="POST">
 <input type="hidden" name="admission_no" value="{{ admission_no }}"><input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="term" value="{{ term }}"><input type="hidden" name="exam_type" value="{{ exam_type }}">
+<input type="hidden" name="subjects" value="{{ enrolled_subjects|join(',') }}">
 <div class="marks-grid">
-{% if 'Mathematics' in enrolled_subjects %}<div class="form-group"><label for="m">Mathematics</label><input type="number" class="form-control" id="m" name="mathematics" min="0" max="100" required></div>{% endif %}
-{% if 'Biology' in enrolled_subjects %}<div class="form-group"><label for="b">Biology</label><input type="number" class="form-control" id="b" name="biology" min="0" max="100" required></div>{% endif %}
-{% if 'Chemistry' in enrolled_subjects %}<div class="form-group"><label for="c">Chemistry</label><input type="number" class="form-control" id="c" name="chemistry" min="0" max="100" required></div>{% endif %}
-{% if 'Physics' in enrolled_subjects %}<div class="form-group"><label for="p">Physics</label><input type="number" class="form-control" id="p" name="physics" min="0" max="100" required></div>{% endif %}
-{% if 'Geography' in enrolled_subjects %}<div class="form-group"><label for="g">Geography</label><input type="number" class="form-control" id="g" name="geography" min="0" max="100" required></div>{% endif %}
-{% if 'Business' in enrolled_subjects %}<div class="form-group"><label for="bs">Business</label><input type="number" class="form-control" id="bs" name="business" min="0" max="100" required></div>{% endif %}
-{% if 'English' in enrolled_subjects %}<div class="form-group"><label for="e">English</label><input type="number" class="form-control" id="e" name="english" min="0" max="100" required></div>{% endif %}
-{% if 'Kiswahili' in enrolled_subjects %}<div class="form-group"><label for="k">Kiswahili</label><input type="number" class="form-control" id="k" name="kiswahili" min="0" max="100" required></div>{% endif %}
-{% if 'CRE' in enrolled_subjects %}<div class="form-group"><label for="cr">CRE</label><input type="number" class="form-control" id="cr" name="cre" min="0" max="100" required></div>{% endif %}
-{% if 'French' in enrolled_subjects %}<div class="form-group"><label for="f">French</label><input type="number" class="form-control" id="f" name="french" min="0" max="100" required></div>{% endif %}
+
+{% set subjects = {
+  'Mathematics': 'mathematics',
+  'English': 'english',
+  'Kiswahili': 'kiswahili',
+  'Biology': 'biology',
+  'Chemistry': 'chemistry',
+  'Physics': 'physics',
+  'Geography': 'geography',
+  'History': 'history',
+  'Civics': 'civics',
+  'Social Studies': 'social_studies',
+  'Science': 'science',
+  'Business': 'business',
+  'Entrepreneurship': 'entrepreneurship',
+  'Computer Studies': 'computer_studies',
+  'Agriculture': 'agriculture',
+  'Home Science': 'home_science',
+  'Physical Education': 'physical_education',
+  'Arts': 'arts',
+  'Music': 'music',
+  'CRE': 'cre',
+  'IRE': 'ire',
+  'French': 'french'
+} %}
+
+{% for subject, field in subjects.items() %}
+  {% if subject in enrolled_subjects %}
+  <div class="form-group">
+    <label for="{{ field }}">{{ subject }}</label>
+    <input
+      type="number"
+      class="form-control"
+      id="{{ field }}"
+      name="{{ field }}"
+      min="0"
+      max="100"
+      required
+    >
+  </div>
+  {% endif %}
+{% endfor %}
+
 </div>
+
 <button type="submit" class="btn-submit" {% if not enrolled_subjects %}disabled{% endif %}><i class="fas fa-check"></i> Submit Marks</button>
 </form>
 </div>

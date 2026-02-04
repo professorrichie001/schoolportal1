@@ -55,12 +55,12 @@ new Chart(document.getElementById('studentScoresChart'), {
 <div class="container">
 
 {% if student_marks %}
-{% for marks in range(3) %}
+{% for mark_record in student_marks %}
 
 <h5>
-    {{ student_marks[marks][1] }} •
-    Term {{ student_marks[marks][2] }} •
-    {{ student_marks[marks][3] }}
+    {{ mark_record[1] }} •
+    Term {{ mark_record[2] }} •
+    {{ mark_record[3] }}
 </h5>
 
 <!-- ===== DESKTOP TABLE ===== -->
@@ -73,17 +73,10 @@ new Chart(document.getElementById('studentScoresChart'), {
         </tr>
     </thead>
     <tbody>
-        <tr><td>Mathematics</td><td>{{ student_marks[marks][4] }}</td></tr>
-        <tr><td>Biology</td><td>{{ student_marks[marks][5] }}</td></tr>
-        <tr><td>Chemistry</td><td>{{ student_marks[marks][6] }}</td></tr>
-        <tr><td>Physics</td><td>{{ student_marks[marks][7] }}</td></tr>
-        <tr><td>Geography</td><td>{{ student_marks[marks][8] }}</td></tr>
-        <tr><td>Business</td><td>{{ student_marks[marks][9] }}</td></tr>
-        <tr><td>English</td><td>{{ student_marks[marks][10] }}</td></tr>
-        <tr><td>Kiswahili</td><td>{{ student_marks[marks][11] }}</td></tr>
-        <tr><td>CRE</td><td>{{ student_marks[marks][12] }}</td></tr>
-        <tr><td>French</td><td>{{ student_marks[marks][13] }}</td></tr>
-        <tr><th>Average</th><th>{{ student_marks[marks][14] }}</th></tr>
+        {% for subject in enrolled_subjects %}
+        <tr><td>{{ subject }}</td><td>{{ mark_record[4 + loop.index0] }}</td></tr>
+        {% endfor %}
+        <tr><th>Average</th><th>{{ mark_record[4 + enrolled_subjects|length] }}</th></tr>
     </tbody>
 </table>
 </div>
@@ -91,18 +84,11 @@ new Chart(document.getElementById('studentScoresChart'), {
 <!-- ===== MOBILE CARDS ===== -->
 <div class="mobile-only">
 <div class="marks-card">
-    <div><strong>Mathematics</strong><span>{{ student_marks[marks][4] }}</span></div>
-    <div><strong>Biology</strong><span>{{ student_marks[marks][5] }}</span></div>
-    <div><strong>Chemistry</strong><span>{{ student_marks[marks][6] }}</span></div>
-    <div><strong>Physics</strong><span>{{ student_marks[marks][7] }}</span></div>
-    <div><strong>Geography</strong><span>{{ student_marks[marks][8] }}</span></div>
-    <div><strong>Business</strong><span>{{ student_marks[marks][9] }}</span></div>
-    <div><strong>English</strong><span>{{ student_marks[marks][10] }}</span></div>
-    <div><strong>Kiswahili</strong><span>{{ student_marks[marks][11] }}</span></div>
-    <div><strong>CRE</strong><span>{{ student_marks[marks][12] }}</span></div>
-    <div><strong>French</strong><span>{{ student_marks[marks][13] }}</span></div>
+    {% for subject in enrolled_subjects %}
+    <div><strong>{{ subject }}</strong><span>{{ mark_record[4 + loop.index0] }}</span></div>
+    {% endfor %}
     <hr>
-    <div><strong>Average</strong><span>{{ student_marks[marks][14] }}</span></div>
+    <div><strong>Average</strong><span>{{ mark_record[4 + enrolled_subjects|length] }}</span></div>
 </div>
 </div>
 

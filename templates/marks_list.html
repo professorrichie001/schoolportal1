@@ -1,0 +1,90 @@
+{% extends "admin_dashboard.html" %}
+{% block content %}
+<link rel="stylesheet" href="../static/assets/css/styles.min.css" />
+<link rel="stylesheet" href="../static/assets/css/n.css" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+
+<style>
+.marks-header{background:#667eea;color:#fff;padding:15px;border-radius:5px;margin-bottom:15px}.marks-header h2{margin:0;font-size:18px}.info-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;padding:15px;background:#f5f5f5;border-radius:5px;margin-bottom:15px}.info-box{padding:10px;background:#fff;border-left:3px solid #667eea;border-radius:3px;font-size:12px}.info-box label{color:#667eea;font-weight:600;margin:0;display:block;text-transform:uppercase}.info-box input{border:none;background:transparent;font-weight:600;color:#333;width:100%}.alert{padding:10px;border-radius:4px;margin:15px 0;font-size:12px}.alert-info{background:#e3f2fd;border-left:3px solid #667eea}.alert-warn{background:#fff3cd;border-left:3px solid #ffc107}.badge{background:#667eea;color:#fff;padding:3px 6px;border-radius:10px;display:inline-block;margin-right:3px;margin-bottom:3px;font-size:10px}.marks-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:15px 0}.form-group{margin:0}.form-group label{font-weight:600;font-size:11px;color:#333;margin-bottom:3px;display:block}.form-control{width:100%;padding:6px;border:1px solid #ddd;border-radius:3px;font-size:12px;box-sizing:border-box}.form-control:focus{border-color:#667eea;outline:none}.form-control[readonly]{background:#f5f5f5;cursor:not-allowed}.btn-submit{width:100%;padding:8px;background:#667eea;color:#fff;border:none;border-radius:3px;font-weight:600;cursor:pointer;margin-top:10px;font-size:12px}.btn-submit:hover:not(:disabled){background:#5568d3}.btn-submit:disabled{background:#ccc;cursor:not-allowed}
+@media(max-width:768px){.marks-grid{grid-template-columns:1fr}.info-row{grid-template-columns:1fr}}
+</style>
+
+<div style="max-width:900px;margin:0 auto;padding:10px">
+<div class="marks-header"><h2><i class="fas fa-edit"></i> Enter Student Marks</h2></div>
+<div class="info-row">
+<div class="info-box"><label>Admission:</label><input value="{{ admission_no }}" readonly></div>
+<div class="info-box"><label>Year:</label><input value="{{ year }}" readonly></div>
+<div class="info-box"><label>Term:</label><input value="{{ term }}" readonly></div>
+<div class="info-box"><label>Exam:</label><input value="{{ exam_type }}" readonly></div>
+</div>
+{% if enrolled_subjects %}
+<div class="alert alert-info"><strong>✓ Enrolled Subjects:</strong> {% for subject in enrolled_subjects %}<span class="badge">{{ subject }}</span>{% endfor %}</div>
+{% else %}
+<div class="alert alert-warn"><strong>⚠ Warning:</strong> No subjects enrolled</div>
+{% endif %}
+<form action="/submit_marks" method="POST">
+<input type="hidden" name="admission_no" value="{{ admission_no }}"><input type="hidden" name="year" value="{{ year }}"><input type="hidden" name="term" value="{{ term }}"><input type="hidden" name="exam_type" value="{{ exam_type }}">
+<input type="hidden" name="subjects" value="{{ enrolled_subjects|join(',') }}">
+<div class="marks-grid">
+
+{% set subjects = {
+  'Mathematics': 'mathematics',
+  'English': 'english',
+  'Kiswahili': 'kiswahili',
+  'Biology': 'biology',
+  'Chemistry': 'chemistry',
+  'Physics': 'physics',
+  'Geography': 'geography',
+  'History': 'history',
+  'Civics': 'civics',
+  'Social Studies': 'social_studies',
+  'Science': 'science',
+  'Business': 'business',
+  'Entrepreneurship': 'entrepreneurship',
+  'Computer Studies': 'computer_studies',
+  'Agriculture': 'agriculture',
+  'Home Science': 'home_science',
+  'Physical Education': 'physical_education',
+  'Arts': 'arts',
+  'Music': 'music',
+  'CRE': 'cre',
+  'IRE': 'ire',
+  'French': 'french'
+} %}
+
+{% for subject, field in subjects.items() %}
+  {% if subject in enrolled_subjects %}
+  <div class="form-group">
+    <label for="{{ field }}">{{ subject }}</label>
+    <input
+      type="number"
+      class="form-control"
+      id="{{ field }}"
+      name="{{ field }}"
+      min="0"
+      max="100"
+      required
+    >
+  </div>
+  {% endif %}
+{% endfor %}
+
+</div>
+
+<button type="submit" class="btn-submit" {% if not enrolled_subjects %}disabled{% endif %}><i class="fas fa-check"></i> Submit Marks</button>
+</form>
+</div>
+
+<script src="../static/assets/libs/jquery/jquery.min.js"></script>
+  <script src="../static/assets/libs/bootstrap.bundle.min.js"></script>
+  <script src="../static/assets/js/sidebarmenu.js"></script>
+  <script src="../static/assets/js/app.min.js"></script>
+  <script src="../static/assets/libs/apexcharts/apexcharts.min.js"></script>
+  <script src="../static/assets/libs/simplebar/simplebar.js"></script>
+  <script src="../static/assets/js/dashboard.js"></script>
+      <script src="/../static/vendor/chart.js/Chart.min.js"></script>
+  <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+  <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+
+{% endblock %}

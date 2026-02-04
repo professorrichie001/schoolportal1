@@ -1,0 +1,168 @@
+{% extends "admin_dashboard.html" %}
+{% block content %}
+<link rel="stylesheet" href="../static/assets/css/styles.min.css" />
+<link rel="stylesheet" href="../static/assets/css/n.css" />
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+
+<style>
+.results-header{background:#667eea;color:#fff;padding:15px;border-radius:5px;margin-bottom:15px}.results-header h2{margin:0;font-size:18px}.results-table{width:100%;border-collapse:collapse;background:#fff;border-radius:5px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.1)}.results-table thead{background:#667eea;color:#fff}.results-table th{padding:12px;text-align:left;font-weight:600}.results-table td{padding:12px;border-bottom:1px solid #e0e0e0}.results-table tr:hover{background:#f5f5f5}.results-table tbody tr:last-child td{border-bottom:none}.action-btn{padding:6px 12px;background:#667eea;color:#fff;border:none;border-radius:3px;cursor:pointer;text-decoration:none;display:inline-block;font-size:12px;margin-right:5px}.action-btn:hover{background:#5568d3}.action-btn.view{background:#28a745}.action-btn.view:hover{background:#218838}.action-btn.edit{background:#ffc107}.action-btn.edit:hover{background:#e0a800}.no-data{text-align:center;padding:40px;color:#666;font-size:14px}.filter-info{background:#f5f5f5;padding:10px;border-radius:5px;margin-bottom:15px;font-size:12px}.grade-badge{padding:4px 8px;border-radius:4px;font-weight:600;font-size:11px;color:#fff;text-align:center;min-width:45px}.grade-EE1{background:#27ae60}.grade-EE2{background:#2ecc71}.grade-ME1{background:#f39c12}.grade-ME2{background:#e67e22}.grade-AE1{background:#e74c3c}.grade-AE2{background:#c0392b}.grade-BE1{background:#8b0000}.grade-BE2{background:#3d0000}.average-score{font-weight:600;color:#667eea;text-align:center}
+@media(max-width:768px){.results-table{font-size:12px}.action-btn{padding:4px 8px;font-size:10px}}
+</style>
+
+<div style="max-width:1200px;margin:0 auto;padding:10px">
+  <div class="results-header">
+    <h2><i class="fas fa-list"></i> Students Exam Scores</h2>
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <div class="filter-info">
+      <strong>Filters:</strong> Year: <span style="color:#667eea;font-weight:600">{{ year }}</span> | Term: <span style="color:#667eea;font-weight:600">{{ term }}</span> | Exam Type: <span style="color:#667eea;font-weight:600">{{ exam_type }}</span> | Grade: <span style="color:#667eea;font-weight:600">{{ grade }}</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button id="downloadTableBtn" class="action-btn" style="background:#0069d9"><i class="fas fa-download"></i> Download CSV</button>
+      <button id="downloadPdfBtn" class="action-btn" style="background:#20c997"><i class="fas fa-file-pdf"></i> Download PDF</button>
+    </div>
+  </div>
+
+  {% if students %}
+  <table class="results-table">
+    <thead>
+      <tr>
+        <th>Admission No</th>
+        <th>Name</th>
+        <th>Average Score</th>
+        <th>Grade</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for student in students %}
+      {% set admission_no = student[0] %}
+      {% set name = student[1] %}
+      {% set average = student[2] %}
+      {% if average >= 90 %}
+        {% set grade = "EE1" %}
+      {% elif average >= 75 %}
+        {% set grade = "EE2" %}
+      {% elif average >= 58 %}
+        {% set grade = "ME1" %}
+      {% elif average >= 41 %}
+        {% set grade = "ME2" %}
+      {% elif average >= 31 %}
+        {% set grade = "AE1" %}
+      {% elif average >= 21 %}
+        {% set grade = "AE2" %}
+      {% elif average >= 11 %}
+        {% set grade = "BE1" %}
+      {% else %}
+        {% set grade = "BE2" %}
+      {% endif %}
+      <tr>
+        <td>{{ admission_no }}</td>
+        <td>{{ name }}</td>
+        <td class="average-score">{{ average }}%</td>
+        <td><span class="grade-badge grade-{{ grade }}">{{ grade }}</span></td>
+        <td>
+          <a href="{{ url_for('view_student_exam_scores', admission_no=admission_no|replace('/', 'X'), year=year, term=term, exam_type=exam_type) }}" class="action-btn view">
+            <i class="fas fa-eye"></i> View Scores
+          </a>
+          <a href="{{ url_for('enter_student_marks', admission_no=admission_no|replace('/', 'X')) }}?year={{ year }}&term={{ term }}&type={{ exam_type }}" class="action-btn edit">
+            <i class="fas fa-edit"></i> Edit Marks
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="no-data">
+    <i class="fas fa-inbox" style="font-size:40px;margin-bottom:10px;display:block;color:#ccc"></i>
+    <p>No students found for the selected criteria</p>
+  </div>
+  {% endif %}
+
+  <div style="margin-top:20px;text-align:center">
+    <a href="{{ url_for('type_check') }}" style="padding:8px 16px;background:#667eea;color:#fff;text-decoration:none;border-radius:3px;display:inline-block">
+      <i class="fas fa-arrow-left"></i> Back to Filters
+    </a>
+  </div>
+</div>
+
+<script src="../static/assets/libs/jquery/jquery.min.js"></script>
+<script src="../static/assets/libs/bootstrap.bundle.min.js"></script>
+<script src="../static/assets/js/sidebarmenu.js"></script>
+<script src="../static/assets/js/app.min.js"></script>
+<script src="../static/assets/libs/apexcharts/apexcharts.min.js"></script>
+<script src="../static/assets/libs/simplebar/simplebar.js"></script>
+<script src="../static/assets/js/dashboard.js"></script>
+<script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+<script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+
+<script>
+// CSV download for students table with heading and subtitle
+function csvEscape(s){
+  if(s === undefined || s === null) return '';
+  return String(s).replace(/"/g, '""');
+}
+
+function downloadTableCSV(){
+  const table = document.querySelector('.results-table');
+  if(!table){ alert('No data to download'); return; }
+
+  const schoolName = document.title || 'School';
+  const cls = '{{ grade }}' || '';
+  const year = '{{ year }}' || '';
+  const term = '{{ term }}' || '';
+
+  const filename = `${schoolName.replace(/\s+/g,'_')}_${cls}_${year}_term${term}.csv`;
+  const lines = [];
+
+  // Heading and subtitle
+  lines.push('"' + csvEscape(schoolName) + '"');
+  lines.push('"Class: ' + csvEscape(cls) + ' | Year: ' + csvEscape(year) + ' | Term: ' + csvEscape(term) + '"');
+  lines.push('');
+
+  // headers
+  const headers = Array.from(table.querySelectorAll('thead th')).map(th => csvEscape(th.innerText.trim()));
+  lines.push('"' + headers.join('","') + '"');
+
+  // rows
+  table.querySelectorAll('tbody tr').forEach(tr => {
+    const cols = Array.from(tr.querySelectorAll('td')).map(td => csvEscape(td.innerText.trim()));
+    lines.push('"' + cols.join('","') + '"');
+  });
+
+  const csv = lines.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  const btn = document.getElementById('downloadTableBtn');
+  if(btn) btn.addEventListener('click', downloadTableCSV);
+});
+
+// PDF download: build URL with page title as school name and navigate to endpoint
+document.addEventListener('DOMContentLoaded', function(){
+  const pdfBtn = document.getElementById('downloadPdfBtn');
+  if(!pdfBtn) return;
+  pdfBtn.addEventListener('click', function(){
+    const params = new URLSearchParams({
+      year: '{{ year }}',
+      term: '{{ term }}',
+      exam_type: '{{ exam_type }}',
+      grade: '{{ grade }}',
+      school: document.title || 'School'
+    });
+    window.location = '/download_students_pdf?' + params.toString();
+  });
+});
+</script>
+
+{% endblock %}

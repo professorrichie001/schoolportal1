@@ -1,113 +1,10 @@
 {% extends "dashboard.html" %}
 {% block content %}
+  <link rel="stylesheet" href="../static/assets/css/styles.min.css" />
+    <link rel="stylesheet" href="../static/assets/css/n.css" />
+<!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
-<style>
-/* =========================
-   GENERAL
-========================= */
-.dashboard {
-    background: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    padding: 15px;
-    margin-bottom: 20px;
-}
-
-h5 {
-    font-size: 17px;
-    font-weight: 600;
-    color: #333;
-    border-left: 4px solid #007bff;
-    padding-left: 10px;
-    margin-top: 25px;
-}
-
-/* =========================
-   CHART
-========================= */
-.chart-container {
-    width: 100%;
-    height: 400px;
-}
-
-@media (max-width: 768px) {
-    .chart-container {
-        height: 250px;
-    }
-}
-
-/* =========================
-   DESKTOP TABLE
-========================= */
-.desktop-only {
-    display: block;
-}
-
-.mobile-only {
-    display: none;
-}
-
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 15px;
-    background-color: #fff;
-    border-radius: 10px;
-    overflow: hidden;
-}
-
-th, td {
-    padding: 12px;
-}
-
-th {
-    background: #007bff;
-    color: white;
-}
-
-td {
-    border-bottom: 1px solid #e9ecef;
-}
-
-/* =========================
-   MOBILE CARDS
-========================= */
-.marks-card {
-    background: #ffffff;
-    border-radius: 12px;
-    padding: 15px;
-    margin-top: 10px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-}
-
-.marks-card div {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 0;
-    font-size: 14px;
-}
-
-.marks-card hr {
-    margin: 10px 0;
-}
-
-/* =========================
-   MOBILE RULES
-========================= */
-@media (max-width: 768px) {
-    .desktop-only {
-        display: none;
-    }
-
-    .mobile-only {
-        display: block;
-    }
-
-    h5 {
-        font-size: 16px;
-    }
-}
-</style>
 
 <!-- =========================
      CHART SECTION
@@ -158,12 +55,12 @@ new Chart(document.getElementById('studentScoresChart'), {
 <div class="container">
 
 {% if student_marks %}
-{% for marks in range(3) %}
+{% for mark_record in student_marks %}
 
 <h5>
-    {{ student_marks[marks][1] }} • 
-    Term {{ student_marks[marks][2] }} • 
-    {{ student_marks[marks][3] }}
+    {{ mark_record[1] }} •
+    Term {{ mark_record[2] }} •
+    {{ mark_record[3] }}
 </h5>
 
 <!-- ===== DESKTOP TABLE ===== -->
@@ -176,17 +73,10 @@ new Chart(document.getElementById('studentScoresChart'), {
         </tr>
     </thead>
     <tbody>
-        <tr><td>Mathematics</td><td>{{ student_marks[marks][4] }}</td></tr>
-        <tr><td>Biology</td><td>{{ student_marks[marks][5] }}</td></tr>
-        <tr><td>Chemistry</td><td>{{ student_marks[marks][6] }}</td></tr>
-        <tr><td>Physics</td><td>{{ student_marks[marks][7] }}</td></tr>
-        <tr><td>Geography</td><td>{{ student_marks[marks][8] }}</td></tr>
-        <tr><td>Business</td><td>{{ student_marks[marks][9] }}</td></tr>
-        <tr><td>English</td><td>{{ student_marks[marks][10] }}</td></tr>
-        <tr><td>Kiswahili</td><td>{{ student_marks[marks][11] }}</td></tr>
-        <tr><td>CRE</td><td>{{ student_marks[marks][12] }}</td></tr>
-        <tr><td>French</td><td>{{ student_marks[marks][13] }}</td></tr>
-        <tr><th>Average</th><th>{{ student_marks[marks][14] }}</th></tr>
+        {% for subject in enrolled_subjects %}
+        <tr><td>{{ subject }}</td><td>{{ mark_record[4 + loop.index0] }}</td></tr>
+        {% endfor %}
+        <tr><th>Average</th><th>{{ mark_record[4 + enrolled_subjects|length] }}</th></tr>
     </tbody>
 </table>
 </div>
@@ -194,18 +84,11 @@ new Chart(document.getElementById('studentScoresChart'), {
 <!-- ===== MOBILE CARDS ===== -->
 <div class="mobile-only">
 <div class="marks-card">
-    <div><strong>Mathematics</strong><span>{{ student_marks[marks][4] }}</span></div>
-    <div><strong>Biology</strong><span>{{ student_marks[marks][5] }}</span></div>
-    <div><strong>Chemistry</strong><span>{{ student_marks[marks][6] }}</span></div>
-    <div><strong>Physics</strong><span>{{ student_marks[marks][7] }}</span></div>
-    <div><strong>Geography</strong><span>{{ student_marks[marks][8] }}</span></div>
-    <div><strong>Business</strong><span>{{ student_marks[marks][9] }}</span></div>
-    <div><strong>English</strong><span>{{ student_marks[marks][10] }}</span></div>
-    <div><strong>Kiswahili</strong><span>{{ student_marks[marks][11] }}</span></div>
-    <div><strong>CRE</strong><span>{{ student_marks[marks][12] }}</span></div>
-    <div><strong>French</strong><span>{{ student_marks[marks][13] }}</span></div>
+    {% for subject in enrolled_subjects %}
+    <div><strong>{{ subject }}</strong><span>{{ mark_record[4 + loop.index0] }}</span></div>
+    {% endfor %}
     <hr>
-    <div><strong>Average</strong><span>{{ student_marks[marks][14] }}</span></div>
+    <div><strong>Average</strong><span>{{ mark_record[4 + enrolled_subjects|length] }}</span></div>
 </div>
 </div>
 
@@ -215,5 +98,17 @@ new Chart(document.getElementById('studentScoresChart'), {
 {% endif %}
 
 </div>
+
+
+<script src="../static/assets/libs/jquery/jquery.min.js"></script>
+  <script src="../static/assets/libs/bootstrap.bundle.min.js"></script>
+  <script src="../static/assets/js/sidebarmenu.js"></script>
+  <script src="../static/assets/js/app.min.js"></script>
+  <script src="../static/assets/libs/apexcharts/apexcharts.min.js"></script>
+  <script src="../static/assets/libs/simplebar/simplebar.js"></script>
+  <script src="../static/assets/js/dashboard.js"></script>
+      <script src="/../static/vendor/chart.js/Chart.min.js"></script>
+  <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+  <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
 
 {% endblock %}

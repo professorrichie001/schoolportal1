@@ -12,8 +12,8 @@ import sqlite3, os, database, document_functions, json,requests
 import io
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 from datetime import datetime
@@ -123,9 +123,16 @@ def fee():
     return render_template('fee.html')
 
 
+
+
+
+  
 @app.route('/student_scores')
 def student_scores():
+    # keep the incoming id (dot-encoded) for display/URL, but convert back for DB queries
     admission_no = session.get('admission_no')
+    admission_no = document_functions.replace_slash_with_dot(admission_no)
+    """Render exam trend for a given student (used by the class listing)."""
     conn = sqlite3.connect('student.db')
     cursor = conn.cursor()
 
@@ -133,30 +140,44 @@ def student_scores():
     current_year = datetime.now().year
     years = [current_year - i for i in range(4)]
 
-    # Query to get exam scores for the past available years
     query = '''
-        SELECT year, term, average
-        FROM Examinations
+        SELECT year, term, marks_json
+        FROM marks
         WHERE admission_no = ? AND year <= ?
         ORDER BY year, term
     '''
     cursor.execute(query, (admission_no, current_year))
     rows = cursor.fetchall()
     conn.close()
+    
+    # Get enrolled subjects for the current year
+    enrolled_subjects = enroll_subjects.get_student_enrolled_subjects(admission_no, current_year)
 
-    # Organize data into a dictionary by year
     exam_scores = {str(year): [] for year in years}
     for row in rows:
-        year, term, average = row
-        exam_scores[str(year)].append(average)
+        year, term, marks_json = row
+        try:
+            marks = json.loads(marks_json)
+            # Calculate average using only enrolled subjects
+            if enrolled_subjects:
+                enrolled_marks = {k: v for k, v in marks.items() if k in enrolled_subjects}
+                average = round(sum(enrolled_marks.values()) / len(enrolled_marks), 2) if enrolled_marks else None
+            else:
+                average = round(sum(marks.values()) / len(marks), 2) if marks else None
+            exam_scores.setdefault(str(year), []).append(average)
+        except (json.JSONDecodeError, ValueError):
+            pass
 
-    # Filter out years with no data
-    exam_scores = {year: average for year,average in exam_scores.items() if average}
-    exam_list= database.get_exam_type(admission_no)
+    exam_scores = {year: avg for year, avg in exam_scores.items() if avg}
+    exam_list = database.get_exam_type(admission_no)
 
-    print(exam_scores)
-    return render_template('examtrend.html', exam_scores=exam_scores, student_id=admission_no, student_marks=view_student_marks(), length = len(view_student_marks()),profile_pic = database.get_profile(admission_no),exam_list=exam_list)
-
+    # try to get student marks if function exists
+    try:
+        student_marks = view_student_marks2(admission_no, enrolled_subjects)
+    except Exception:
+        student_marks = []
+    
+    return render_template('examtrend.html', base_template='admin_dashboard.html', exam_scores=exam_scores, student_id=admission_no, student_marks=student_marks, length=len(student_marks), profile_pic=database.get_profile(admission_no), exam_list=exam_list, enrolled_subjects=enrolled_subjects)
 
 @app.route('/scores_by_class')
 def scores_by_class():
@@ -179,8 +200,8 @@ def scores_by_class():
     for admission_no, first, last, grade in rows:
         # fetch latest exam summary (if any)
         cursor.execute('''
-            SELECT term, type, average, year
-            FROM Examinations
+            SELECT term, exam_type, marks_json, year
+            FROM marks
             WHERE admission_no = ?
             ORDER BY year DESC, term DESC
             LIMIT 1
@@ -188,8 +209,14 @@ def scores_by_class():
         exam = cursor.fetchone()
         term = exam[0] if exam else None
         exam_type = exam[1] if exam else None
-        average = exam[2] if exam else None
+        average = None
         year_val = exam[3] if exam and len(exam) > 3 else None
+        if exam and exam[2]:
+            try:
+                marks = json.loads(exam[2])
+                average = round(sum(marks.values()) / len(marks), 2) if marks else None
+            except (json.JSONDecodeError, ValueError):
+                pass
 
         students_by_class[grade or 'Unassigned'].append({
             'id': document_functions.replace_slash_with_dot(admission_no),
@@ -216,14 +243,14 @@ def scores_by_class():
     print(f"the admin is :{admin}")
     profile_pic = database.get_profile_t(admin) if admin else None
 
-    # collect distinct filter values from Examinations table
+    # collect distinct filter values from marks table
     conn = sqlite3.connect('student.db')
     cursor = conn.cursor()
-    cursor.execute('SELECT DISTINCT type FROM Examinations')
+    cursor.execute('SELECT DISTINCT exam_type FROM marks')
     exam_types = sorted([r[0] for r in cursor.fetchall() if r[0]])
-    cursor.execute('SELECT DISTINCT term FROM Examinations')
+    cursor.execute('SELECT DISTINCT term FROM marks')
     terms = sorted([r[0] for r in cursor.fetchall() if r[0]])
-    cursor.execute('SELECT DISTINCT year FROM Examinations')
+    cursor.execute('SELECT DISTINCT year FROM marks')
     years = sorted([r[0] for r in cursor.fetchall() if r[0]], reverse=True)
     conn.close()
 
@@ -250,8 +277,8 @@ def examtrend(student_id):
     years = [current_year - i for i in range(4)]
 
     query = '''
-        SELECT year, term, average
-        FROM Examinations
+        SELECT year, term, marks_json
+        FROM marks
         WHERE admission_no = ? AND year <= ?
         ORDER BY year, term
     '''
@@ -261,19 +288,31 @@ def examtrend(student_id):
 
     exam_scores = {str(year): [] for year in years}
     for row in rows:
-        year, term, average = row
-        exam_scores.setdefault(str(year), []).append(average)
+        year, term, marks_json = row
+        try:
+            marks = json.loads(marks_json)
+            # determine enrolled subjects for averaging
+            enrolled_subjects = enroll_subjects.get_student_enrolled_subjects(admission_no, current_year)
+            if enrolled_subjects:
+                enrolled_marks = {k: v for k, v in marks.items() if k in enrolled_subjects}
+                average = round(sum(enrolled_marks.values()) / len(enrolled_marks), 2) if enrolled_marks else None
+            else:
+                average = round(sum(marks.values()) / len(marks), 2) if marks else None
+            exam_scores.setdefault(str(year), []).append(average)
+        except (json.JSONDecodeError, ValueError):
+            pass
 
     exam_scores = {year: avg for year, avg in exam_scores.items() if avg}
     exam_list = database.get_exam_type(admission_no)
 
-    # try to get student marks if function exists
+    # Get enrolled subjects for the current year and fetch structured marks
+    enrolled_subjects = enroll_subjects.get_student_enrolled_subjects(admission_no, current_year)
     try:
-        student_marks = view_student_marks()
+        student_marks = view_student_marks2(admission_no, enrolled_subjects)
     except Exception:
         student_marks = []
 
-    return render_template('examtrend.html', base_template='admin_dashboard.html', exam_scores=exam_scores, student_id=display_student_id, student_marks=student_marks, length=len(student_marks), profile_pic=database.get_profile(admission_no), exam_list=exam_list)
+    return render_template('examtrend.html', base_template='admin_dashboard.html', exam_scores=exam_scores, student_id=display_student_id, student_marks=student_marks, length=len(student_marks), profile_pic=database.get_profile(admission_no), exam_list=exam_list, enrolled_subjects=enrolled_subjects)
 
 @app.route('/examtrend2/<student_id>')
 def examtrend2(student_id):
@@ -289,30 +328,43 @@ def examtrend2(student_id):
     years = [current_year - i for i in range(4)]
 
     query = '''
-        SELECT year, term, average
-        FROM Examinations
+        SELECT year, term, marks_json
+        FROM marks
         WHERE admission_no = ? AND year <= ?
         ORDER BY year, term
     '''
     cursor.execute(query, (admission_no, current_year))
     rows = cursor.fetchall()
     conn.close()
+    
+    # Get enrolled subjects for the current year
+    enrolled_subjects = enroll_subjects.get_student_enrolled_subjects(admission_no, current_year)
 
     exam_scores = {str(year): [] for year in years}
     for row in rows:
-        year, term, average = row
-        exam_scores.setdefault(str(year), []).append(average)
+        year, term, marks_json = row
+        try:
+            marks = json.loads(marks_json)
+            # Calculate average using only enrolled subjects
+            if enrolled_subjects:
+                enrolled_marks = {k: v for k, v in marks.items() if k in enrolled_subjects}
+                average = round(sum(enrolled_marks.values()) / len(enrolled_marks), 2) if enrolled_marks else None
+            else:
+                average = round(sum(marks.values()) / len(marks), 2) if marks else None
+            exam_scores.setdefault(str(year), []).append(average)
+        except (json.JSONDecodeError, ValueError):
+            pass
 
     exam_scores = {year: avg for year, avg in exam_scores.items() if avg}
     exam_list = database.get_exam_type(admission_no)
 
     # try to get student marks if function exists
     try:
-        student_marks = view_student_marks2(admission_no)
+        student_marks = view_student_marks2(admission_no, enrolled_subjects)
     except Exception:
         student_marks = []
 
-    return render_template('examtrend2.html', base_template='admin_dashboard.html', exam_scores=exam_scores, student_id=display_student_id, student_marks=student_marks, length=len(student_marks), profile_pic=database.get_profile(admission_no), exam_list=exam_list)
+    return render_template('examtrend2.html', base_template='admin_dashboard.html', exam_scores=exam_scores, student_id=display_student_id, student_marks=student_marks, length=len(student_marks), profile_pic=database.get_profile(admission_no), exam_list=exam_list, enrolled_subjects=enrolled_subjects)
 
 @app.route('/settings')
 def settings():
@@ -345,22 +397,95 @@ def admin_dashboard():
     return render_template("admin_dashboard.html", admission_no=admission_no)
 
 
+# @app.route('/submit_marks', methods=['POST'])
+# def submit_marks():
+#     # Extract marks from the form and put them into a list
+#     marks_list = [int(request.form[subject]) for subject in subjects if request.form.get(subject) not in (None, "")]
+
+#     # For demonstration, let's print the marks list
+#     print("Marks List:", marks_list)
+#     admission_no = document_functions.replace_slash_with_slash(request.form['admission_no'])
+#     exam_type = request.form['exam_type']
+#     year = request.form['year']
+#     term = request.form['term']
+#     # You can now use marks_list for further processing, such as inserting into a database
+#     database.insert_marks(year, term, exam_type, admission_no, marks_list)
+#     database.set_average(admission_no,term, year, exam_type)
+
+#     return "Marks submitted successfully!"
+
+from flask import request
+import json
+
+# @app.route('/submit_marks', methods=['POST'])
+# def submit_marks():
+
+#     # Subjects that were actually rendered
+#     submitted_subjects = request.form['subjects'].split(',')
+
+#     marks = {}
+
+#     for subject in submitted_subjects:
+#         field = subject.lower().replace(" ", "_")
+#         value = request.form.get(field)
+
+#         if value not in (None, ""):
+#             value = int(value)
+
+#             if not 0 <= value <= 100:
+#                 return "Invalid mark entered", 400
+
+#             marks[subject] = value
+
+#     print("Marks Dictionary:", marks)
+
+#     admission_no = document_functions.replace_slash_with_slash(
+#         request.form['admission_no']
+#     )
+#     exam_type = request.form['exam_type']
+#     year = request.form['year']
+#     term = request.form['term']
+
+#     database.insert_marks(year, term, exam_type, admission_no, marks)
+#     database.set_average(admission_no, term, year, exam_type)
+
+    # return "Marks submitted successfully!"
 @app.route('/submit_marks', methods=['POST'])
 def submit_marks():
-    # Extract marks from the form and put them into a list
-    marks_list = [int(request.form[subject]) for subject in subjects]
+    # Subjects that were rendered
+    submitted_subjects = request.form['subjects'].split(',')
 
-    # For demonstration, let's print the marks list
-    print("Marks List:", marks_list)
-    admission_no = document_functions.replace_slash_with_slash(request.form['admission_no'])
+    # Build marks dictionary
+    marks = {}
+    for subject in submitted_subjects:
+        field = subject.lower().replace(" ", "_")
+        value = request.form.get(field)
+
+        if value not in (None, ""):
+            value = int(value)
+            if not 0 <= value <= 100:
+                return f"Invalid mark for {subject}: {value}", 400
+            marks[subject] = value
+
+    if not marks:
+        return "No marks submitted", 400
+
+    # Calculate average
+    average = round(sum(marks.values()) / len(marks), 2)
+
+    # Get other form data
+    admission_no = document_functions.replace_slash_with_slash(
+        request.form['admission_no']
+    )
     exam_type = request.form['exam_type']
     year = request.form['year']
     term = request.form['term']
-    # You can now use marks_list for further processing, such as inserting into a database
-    database.insert_marks(year, term, exam_type, admission_no, marks_list)
-    database.set_average(admission_no,term, year, exam_type)
 
-    return "Marks submitted successfully!"
+    # Insert into database
+    database.insert_marks(admission_no, year, term, exam_type, marks, average)
+
+    return f"Marks submitted successfully! Average: {average}"
+
 
 
 
@@ -463,21 +588,169 @@ def view_students():
     grade = request.form['class']
     data = database.get_students_marks_filtered(year, term, exam_type, class_mapping1[grade])
     print(f"the data is:{data}")
-    return render_template('exam_list.html', students=data)
+    return render_template('students_list.html', students=data, year=year, term=term, exam_type=exam_type, grade=class_mapping1[grade])
+
+
+@app.route('/view_student_exam_scores/<admission_no>')
+def view_student_exam_scores(admission_no):
+    """View exam scores for a student"""
+    admission_n = document_functions.replace_slash_with_slash(admission_no)
+    year = request.args.get('year')
+    term = request.args.get('term')
+    exam_type = request.args.get('exam_type')
+    
+    # Get student name
+    conn = sqlite3.connect('student.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT first_name FROM students WHERE admission_no = ?', (admission_n,))
+    student = cursor.fetchone()
+    conn.close()
+    
+    student_name = student[0] if student else "Unknown"
+    
+    # Get marks
+    conn = sqlite3.connect('student.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT marks_json FROM marks
+        WHERE admission_no = ? AND year = ? AND term = ? AND exam_type = ?
+    ''', (admission_n, year, term, exam_type))
+    result = cursor.fetchone()
+    conn.close()
+    
+    marks = {}
+    if result:
+        try:
+            marks = json.loads(result[0])
+        except (json.JSONDecodeError, ValueError):
+            marks = {}
+    
+    return render_template('student_exam_scores.html', 
+                          admission_no=admission_n, 
+                          student_name=student_name,
+                          marks=marks, 
+                          year=year, 
+                          term=term, 
+                          exam_type=exam_type)
+
+
+@app.route('/download_students_pdf')
+def download_students_pdf():
+    # Query params: year, term, exam_type, grade, school
+    year = request.args.get('year')
+    term = request.args.get('term')
+    exam_type = request.args.get('exam_type')
+    grade = request.args.get('grade')
+    school = request.args.get('school') or 'School'
+
+    if not (year and term and exam_type and grade):
+        return redirect(url_for('type_check'))
+
+    # Map numeric/class selector values to the DB grade value when necessary
+    try:
+        db_grade = class_mapping1.get(str(grade), grade)
+    except Exception:
+        db_grade = grade
+
+    students = database.get_students_marks_filtered(year, term, exam_type, db_grade)
+
+    # Build PDF
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
+    styles = getSampleStyleSheet()
+    elems = []
+
+    # Enhanced styles for PDF
+    styles.add(ParagraphStyle(name='TitleCenter', parent=styles['Title'], alignment=1, fontSize=18, leading=22))
+    styles.add(ParagraphStyle(name='SubTitleCenter', parent=styles['Normal'], alignment=1, fontSize=10, leading=12))
+
+    title = Paragraph(f"<b><u>{school}</u></b>", styles['TitleCenter'])
+    # Display-friendly grade using mapping (e.g., '7' -> 'grade4')
+    display_grade = class_mapping1.get(str(grade), grade)
+    subtitle = Paragraph(f"<b>Class:</b> {display_grade} &nbsp;&nbsp; <b>Year:</b> {year} &nbsp;&nbsp; <b>Term:</b> {term} &nbsp;&nbsp; <b>Exam:</b> {exam_type}", styles['SubTitleCenter'])
+    elems.append(title)
+    elems.append(Spacer(1, 6))
+    elems.append(subtitle)
+    elems.append(Spacer(1, 12))
+
+    # Table data
+    data = [['Admission No', 'Name', 'Average (%)', 'Grade']]
+
+    def grade_from_avg(avg):
+        try:
+            avg = float(avg)
+        except Exception:
+            return ''
+        if avg >= 90:
+            return 'EE1'
+        if avg >= 75:
+            return 'EE2'
+        if avg >= 58:
+            return 'ME1'
+        if avg >= 41:
+            return 'ME2'
+        if avg >= 31:
+            return 'AE1'
+        if avg >= 21:
+            return 'AE2'
+        if avg >= 11:
+            return 'BE1'
+        return 'BE2'
+
+    for admission_no, first_name, average in students:
+        data.append([admission_no, first_name, f"{average}", grade_from_avg(average)])
+
+    if len(data) == 1:
+        elems.append(Paragraph('No students found for the selected criteria.', styles['Normal']))
+    else:
+        table = Table(data, colWidths=[2.2*inch, 2.8*inch, 1.2*inch, 1.0*inch])
+        tbl_style = TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2F5496')),
+            ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,0), 11),
+            ('ALIGN', (0,0), (-1,0), 'CENTER'),
+            ('BOTTOMPADDING', (0,0), (-1,0), 10),
+            ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
+            ('BOX', (0,0), (-1,-1), 0.5, colors.grey),
+            ('LEFTPADDING', (0,0), (-1,-1), 6),
+            ('RIGHTPADDING', (0,0), (-1,-1), 6),
+            ('ALIGN', (1,1), (1,-1), 'LEFT'),
+            ('ALIGN', (2,1), (2,-1), 'CENTER'),
+        ])
+        # alternating row backgrounds for body rows
+        tbl_style.add('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.whitesmoke, colors.lightgrey])
+        table.setStyle(tbl_style)
+        elems.append(table)
+
+    doc.build(elems)
+    buffer.seek(0)
+
+    filename = f"{school.replace(' ','_')}_{grade}_{year}_term{term}.pdf"
+    return send_file(buffer, as_attachment=True, download_name=filename, mimetype='application/pdf')
+
 
 
 @app.route('/enter_marks/<admission_no>', methods=['GET', 'POST'])
 def enter_student_marks(admission_no):
     admission_n = document_functions.replace_slash_with_slash(admission_no)
-    year = request.form['year']
-    term = int(request.form['term'])
-    exam_type = request.form['type']
-    database.insert_time(admission_n, year, term, exam_type)
+    # Get parameters from query string or form
+    year = request.args.get('year') or request.form.get('year')
+    term = request.args.get('term') or request.form.get('term')
+    exam_type = request.args.get('type') or request.form.get('type')
     
-    # Get enrolled subjects for this student (for this year)
-    enrolled_subjects = enroll_subjects.get_student_enrolled_subjects(admission_n, year)
+    if year and term and exam_type:
+        term = int(term) if isinstance(term, str) else term
+        database.insert_time(admission_n, year, term, exam_type)
+        
+        # Get enrolled subjects for this student (for this year)
+        enrolled_subjects = enroll_subjects.get_student_enrolled_subjects(admission_n, year)
 
-    return render_template('enter_marks.html', admission_no=admission_n, year=year, exam_type=exam_type, term=term, enrolled_subjects=enrolled_subjects)
+        return render_template('enter_marks.html', admission_no=admission_n, year=year, exam_type=exam_type, term=term, enrolled_subjects=enrolled_subjects)
+    
+    # If parameters are missing, redirect back
+    return redirect(url_for('type_check'))
+
 
 
 
@@ -1312,20 +1585,43 @@ def view_student_marks():
     with sqlite3.connect('student.db') as conn:
         cursor = conn.cursor()
         cursor.execute('''
-        SELECT * FROM Examinations
+        SELECT * FROM marks
         WHERE admission_no = ?
         ''',(admission_no,))
-    result = cursor.fetchall()
+        result = cursor.fetchall()
     return result
 
-def view_student_marks2(admission_no):
+def view_student_marks2(admission_no, enrolled_subjects=None):
+    """Get student marks with unpacked subjects for template rendering, filtered to enrolled subjects only."""
+    if enrolled_subjects is None:
+        enrolled_subjects = []
+    
     with sqlite3.connect('student.db') as conn:
         cursor = conn.cursor()
         cursor.execute('''
-        SELECT * FROM Examinations
+        SELECT id, admission_no, year, term, exam_type, marks_json, average
+        FROM marks
         WHERE admission_no = ?
+        ORDER BY year DESC, term DESC
         ''',(admission_no,))
-    result = cursor.fetchall()
+        rows = cursor.fetchall()
+    
+    result = []
+    for row in rows:
+        row_id, adm, year, term, exam_type, marks_json, avg = row
+        try:
+            marks = json.loads(marks_json) if marks_json else {}
+        except (json.JSONDecodeError, ValueError):
+            marks = {}
+        
+        # Build tuple with only enrolled subjects (dynamic length based on actual enrollment)
+        subject_marks = tuple(marks.get(subj, '-') for subj in enrolled_subjects)
+        avg_val = avg if avg is not None else '-'
+        
+        # Format: (id, year, term, exam_type, ...enrolled_subject_marks, avg)
+        # Subjects are in the order from enrolled_subjects list
+        result.append((row_id, year, term, exam_type) + subject_marks + (avg_val,))
+    
     return result
 
 #===========================================Change Student Logins
@@ -1341,8 +1637,12 @@ def show_students():
         admission_number = request.form['admission_number']
         new_password = request.form['new_password']
 
-        # Update the password in the logins table
-        cursor.execute("UPDATE logins SET password = ? WHERE admission_no = ?", (new_password, admission_number))
+        # Update the password in the logins table; insert if missing
+        cursor.execute("SELECT 1 FROM logins WHERE admission_no = ?", (admission_number,))
+        if cursor.fetchone():
+            cursor.execute("UPDATE logins SET password = ? WHERE admission_no = ?", (new_password, admission_number))
+        else:
+            cursor.execute("INSERT INTO logins (admission_no, password) VALUES (?, ?)", (admission_number, new_password))
         conn.commit()
 
         # Fetch the email, first name, and last name for the given admission number
@@ -1380,7 +1680,7 @@ def show_students():
         cursor.execute('''
             SELECT COUNT(*)
             FROM students
-            JOIN logins ON students.admission_no = logins.admission_no
+            LEFT JOIN logins ON students.admission_no = logins.admission_no
             WHERE students.admission_no LIKE ? OR students.first_name LIKE ? OR students.last_name LIKE ?
         ''', (like_q, like_q, like_q))
         total = cursor.fetchone()[0]
@@ -1389,8 +1689,9 @@ def show_students():
         cursor.execute('''
             SELECT students.admission_no, students.first_name, students.last_name, logins.password
             FROM students
-            JOIN logins ON students.admission_no = logins.admission_no
+            LEFT JOIN logins ON students.admission_no = logins.admission_no
             WHERE students.admission_no LIKE ? OR students.first_name LIKE ? OR students.last_name LIKE ?
+            ORDER BY students.rowid DESC
             LIMIT ? OFFSET ?
         ''', (like_q, like_q, like_q, per_page, offset))
     else:
@@ -1398,7 +1699,7 @@ def show_students():
         cursor.execute('''
             SELECT COUNT(*)
             FROM students
-            JOIN logins ON students.admission_no = logins.admission_no
+            LEFT JOIN logins ON students.admission_no = logins.admission_no
         ''')
         total = cursor.fetchone()[0]
 
@@ -1406,11 +1707,14 @@ def show_students():
         cursor.execute('''
             SELECT students.admission_no, students.first_name, students.last_name, logins.password
             FROM students
-            JOIN logins ON students.admission_no = logins.admission_no
+            LEFT JOIN logins ON students.admission_no = logins.admission_no
+            ORDER BY students.rowid DESC
             LIMIT ? OFFSET ?
         ''', (per_page, offset))
 
     students = cursor.fetchall()
+    # normalize missing passwords to empty string for display
+    students = [(s[0], s[1], s[2], s[3] if s[3] is not None else '') for s in students]
     conn.close()
 
     # compute pagination metadata

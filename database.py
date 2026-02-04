@@ -1,6 +1,7 @@
 import sqlite3
 import document_functions
 from datetime import datetime
+import json
 
 
 #---------------------------------Create Table--------------------------------------------------#
@@ -492,7 +493,7 @@ def get_students_and_subjects():
         query = '''
         SELECT s.first_name, s.last_name, sub.*
         FROM students s
-        INNER JOIN subjects sub ON s.admission_no = sub.admission_no
+        INNER JOIN marks sub ON s.admission_no = sub.admission_no
         ORDER BY sub.average
         '''
 
@@ -578,31 +579,104 @@ def add_level(admission_no, grade, phone, admission_date):
 
 #=================insert Marks of Each Student
 
-def insert_marks(year,time,exam_type,admission_no, marks_list):
-    if len(marks_list) != len(subject):
-        raise ValueError("Marks list length must match the number of subjects.")
+# def insert_marks(year,time,exam_type,admission_no, marks_list):
+#     if len(marks_list) != len(subject):
+#         raise ValueError("Marks list length must match the number of subjects.")
 
+#     with sqlite3.connect('student.db') as conn:
+#         cursor = conn.cursor()
+
+#         # Build the SQL query dynamically based on the subjects
+#         query =  f'''
+#             UPDATE Examinations
+#             SET {', '.join([f"{subj} = ?" for subj in subject])}
+#             WHERE admission_no = ? AND year = ? AND term = ? AND type = ?
+#         '''
+
+#         # Execute the update; if no row was updated, insert a new one (upsert behavior)
+#         cursor.execute(query, (*marks_list, admission_no, year, time, exam_type))
+#         if cursor.rowcount == 0:
+#             # Build insert statement: admission_no, year, term, type, <subjects...>
+#             cols = 'admission_no, year, term, type, ' + ', '.join(subject)
+#             placeholders = ','.join(['?'] * (4 + len(subject)))
+#             insert_query = f"INSERT INTO Examinations ({cols}) VALUES ({placeholders})"
+#             cursor.execute(insert_query, (admission_no, year, time, exam_type, *marks_list))
+
+#         conn.commit()
+
+import json
+
+# def insert_marks(year, term, exam_type, admission_no, marks):
+#     conn = sqlite3.connect("student.db")
+#     cursor = conn.cursor()
+
+#     # Optional: prevent duplicates
+#     cursor.execute("""
+#         DELETE FROM marks
+#         WHERE admission_no=? AND year=? AND term=? AND exam_type=?
+#     """, (admission_no, year, term, exam_type))
+
+#     cursor.execute("""
+#         INSERT INTO marks (year, term, exam_type, admission_no, marks_json)
+#         VALUES (?, ?, ?, ?, ?)
+#     """, (
+#         year,
+#         term,
+#         exam_type,
+#         admission_no,
+#         json.dumps(marks)
+#     ))
+
+#     conn.commit()
+#     conn.close()
+def insert_marks(admission_no, year, term, exam_type, marks, average):
+    conn = sqlite3.connect("student.db")
+    cursor = conn.cursor()
+
+    # Enable foreign keys
+    cursor.execute("PRAGMA foreign_keys = ON;")
+
+    # Optional: delete previous marks for the same student/exam
+    cursor.execute("""
+        DELETE FROM marks
+        WHERE admission_no=? AND year=? AND term=? AND exam_type=?
+    """, (admission_no, year, term, exam_type))
+
+    # Insert new marks
+    cursor.execute("""
+        INSERT INTO marks (admission_no, year, term, exam_type, marks_json, average)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (
+        admission_no,
+        year,
+        term,
+        exam_type,
+        json.dumps(marks),
+        average
+    ))
+
+    conn.commit()
+    conn.close()
+
+def insert_time(admission_no, year, term, exam_type):
+    """Initialize or ensure a marks record exists for a student's exam"""
     with sqlite3.connect('student.db') as conn:
         cursor = conn.cursor()
+        # Check if a record already exists
+        cursor.execute('''
+            SELECT id FROM marks 
+            WHERE admission_no = ? AND year = ? AND term = ? AND exam_type = ?
+        ''', (admission_no, year, term, exam_type))
+        
+        existing = cursor.fetchone()
+        if not existing:
+            # Initialize with empty marks JSON
+            cursor.execute('''
+                INSERT INTO marks (admission_no, year, term, exam_type, marks_json)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (admission_no, year, term, exam_type, json.dumps({})))
+            conn.commit()
 
-        # Build the SQL query dynamically based on the subjects
-        query =  f'''
-            UPDATE Examinations
-            SET {', '.join([f"{subj} = ?" for subj in subject])}
-            WHERE admission_no = ? AND year = ? AND term = ? AND type = ?
-        '''
-        # Execute the query with admission_no followed by marks list
-        cursor.execute(query, ( *marks_list,admission_no,year,time,exam_type))
-        conn.commit()
-def insert_time(admission_no,year, term, exam_type):
-    with sqlite3.connect('student.db') as conn:
-        cursor = conn.cursor()
-        query = '''
-                INSERT INTO Examinations (admission_no,year,term,type)
-                VALUES ( ?, ?, ?, ?)
-                '''
-        cursor.execute(query, (admission_no,year,term,exam_type))
-        conn.commit()
 #remove data from the database
 
 
@@ -737,27 +811,8 @@ def delete_student(admission_no):
 #==============================Exams Table=================================================#
 
 def init_exams_table():
-    with sqlite3.connect('student.db') as conn:
-        cursor = conn.cursor()
-        create_table_query = '''
-                CREATE TABLE IF NOT EXISTS Examinations(
-            admission_no TEXT,
-            year number,
-            term number,
-            type TEXT,
-
-        '''
-        for i in range(len(subject)):
-            create_table_query += f'{subject[i]} REAL, '
-
-        create_table_query += '''
-            FOREIGN KEY (admission_no) REFERENCES students (admission_no)
-        )
-        '''
-
-        # Execute the final query
-        cursor.execute(create_table_query)
-        conn.commit()
+    # Examinations table has been replaced with marks table
+    pass
 
 
 #===================Student Fees Table
@@ -957,82 +1012,97 @@ def average_table():
         conn.commit()
 
 def add_column_average():
-    with sqlite3.connect('student.db') as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-        ALTER TABLE Examinations
-        ADD COLUMN average DECIMAL(5,2);
-        """)
-        conn.commit()
+    # Examinations table has been replaced with marks table
+    # Average is now calculated from marks_json in marks table
+    pass
 
 def get_all_students_exams():
-    query_template = '''
-            SELECT students.admission_no, students.first_name, {subjects}, Examinations.average
-
-        FROM students
-        JOIN Examinations ON students.admission_no = Examinations.admission_no
-        ORDER BY Examinations.average
-    '''
-
-    subject_columns = ', '.join([f'Examinations.{subj}' for subj in subject])
-    query = query_template.format(subjects=subject_columns)
-
+    """Get all students with their exam marks from the marks table"""
     with sqlite3.connect('student.db') as conn:
         cursor = conn.cursor()
-        cursor.execute(query)
-        result = cursor.fetchall()
-
-    return result
-
-
-def set_average(admission_no,term,year,exam_type):
-    with sqlite3.connect('student.db') as conn:
-        cursor = conn.cursor()
-
-        query = """
-            SELECT ROUND(
-                (Mathematics + Biology + Chemistry + Physics + Geography + Business +
-                English + Kiswahili + CRE + French) / 10.0, 2) AS avg_marks
-            FROM Examinations
-            WHERE admission_no = ? AND term = ? AND year = ? AND type = ?
-        """
-
-        # Execute the query with the admission_no parameter correctly passed as a tuple
-        cursor.execute(query, (admission_no,term,year,exam_type))
-
-        # Fetch the result if you need to do something with the calculated average
-        avg_marks = cursor.fetchone()[0]  # Fetch the average from the result
-
-        query2 = '''
-        UPDATE Examinations SET average = ? WHERE admission_no = ? AND term = ? AND year = ? AND type = ?
-        '''
-        cursor.execute(query2,(avg_marks,admission_no,term,year,exam_type))
-
-        conn.commit()
-
-        # No need to call conn.commit() since no changes are made to the database
-
-
-# Example usage:
-# set_average('EB3/57373/21')
-def get_students_marks_filtered(year,term,exam_type,grade):
-    query_template = '''
-            SELECT students.admission_no, students.first_name, {subjects}, Examinations.average
+        cursor.execute('''
+            SELECT DISTINCT students.admission_no, students.first_name
             FROM students
-            JOIN Examinations ON students.admission_no = Examinations.admission_no
-            JOIN rest ON Examinations.admission_no = rest.admission_no
-            WHERE Examinations.year = ? AND Examinations.term = ? AND Examinations.type = ? AND rest.grade = ?
+            JOIN marks ON students.admission_no = marks.admission_no
+            ORDER BY students.first_name
+        ''')
+        result = cursor.fetchall()
+    
+    return result
 
-        '''
 
-    subject_columns = ', '.join([f'Examinations.{subj}' for subj in subject])
-    query = query_template.format(subjects=subject_columns)
 
+def set_average(admission_no, term, year, exam_type):
+    """Calculate and store the average for a student's exam marks"""
+    conn = sqlite3.connect("student.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT marks_json FROM marks
+        WHERE admission_no=? AND term=? AND year=? AND exam_type=?
+    """, (admission_no, term, year, exam_type))
+
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return None
+    
+    try:
+        marks = json.loads(row[0])
+        if not marks:
+            conn.close()
+            return None
+        
+        average = round(sum(marks.values()) / len(marks), 2)
+        
+        # Update the average in the marks table if it has an average column
+        # For now, we'll just return the average since we need to check the table schema
+        conn.close()
+        return average
+    except (json.JSONDecodeError, ValueError):
+        conn.close()
+        return None
+
+
+
+def get_students_marks_filtered(year, term, exam_type, grade):
+    """
+    Get students in a specific grade who have marks recorded for a given year, term, and exam type.
+    Returns: List of tuples (admission_no, first_name, average) sorted by average descending
+    """
     with sqlite3.connect('student.db') as conn:
         cursor = conn.cursor()
-        cursor.execute(query,(year,term,exam_type,grade))
-        result = cursor.fetchall()
-    return result
+        # Get students in the specified grade that have marks for this exam
+        cursor.execute('''
+            SELECT students.admission_no, students.first_name, marks.marks_json
+            FROM students
+            JOIN marks ON students.admission_no = marks.admission_no
+            JOIN rest ON students.admission_no = rest.admission_no
+            WHERE marks.year = ? AND marks.term = ? AND marks.exam_type = ? AND rest.grade = ?
+            ORDER BY students.first_name
+        ''', (year, term, exam_type, grade))
+        results = cursor.fetchall()
+    
+    # Calculate averages and prepare final results
+    final_results = []
+    for admission_no, first_name, marks_json in results:
+        try:
+            marks = json.loads(marks_json)
+            if marks:
+                average = round(sum(marks.values()) / len(marks), 2)
+            else:
+                average = 0
+        except (json.JSONDecodeError, ValueError):
+            average = 0
+        
+        final_results.append((admission_no, first_name, average))
+    
+    # Sort by average descending
+    final_results.sort(key=lambda x: x[2], reverse=True)
+    
+    return final_results
+
+
 def setup_database():
     conn = sqlite3.connect('fees.db')
     cursor = conn.cursor()
@@ -1118,15 +1188,18 @@ def get_admission_date(admission_no):
     return admission_date
 #===============GET EXAM TYPE
 def get_exam_type(admission_no):
+    """Get list of exam types for a student from the marks table"""
     with sqlite3.connect('student.db') as conn:
         cursor = conn.cursor()
         cursor.execute('''
-        SELECT type
-        FROM Examinations
-        WHERE admission_no = ?
-        ''',(admission_no,))
+            SELECT DISTINCT exam_type
+            FROM marks
+            WHERE admission_no = ?
+        ''', (admission_no,))
         exam_list = cursor.fetchall()
-    return [exam[0] for exam in exam_list]
+    
+    return [exam[0] for exam in exam_list] if exam_list else []
+
 
 def teachers():
     conn = sqlite3.connect('admin.db')

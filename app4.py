@@ -19,6 +19,7 @@ from datetime import datetime
 import logging
 import time
 import graph2
+import enroll_subjects
 
 app = Flask(__name__)
 
@@ -121,7 +122,7 @@ def student_scores():
     # Query to get exam scores for the past available years
     query = '''
         SELECT year, term, average
-        FROM Examinations
+        FROM marks
         WHERE admission_no = ? AND year <= ?
         ORDER BY year, term
     '''
@@ -131,6 +132,8 @@ def student_scores():
 
     # Organize data into a dictionary by year
     exam_scores = {str(year): [] for year in years}
+    # Get enrolled subjects for the current year
+    enrolled_subjects = enroll_subjects.get_student_enrolled_subjects(admission_no, current_year)
     for row in rows:
         year, term, average = row
         exam_scores[str(year)].append(average)
@@ -139,8 +142,13 @@ def student_scores():
     exam_scores = {year: average for year,average in exam_scores.items() if average}
     exam_list= database.get_exam_type(admission_no)
 
-    print(exam_scores)
-    return render_template('examtrend.html', exam_scores=exam_scores, student_id=admission_no, student_marks=view_student_marks(), length = len(view_student_marks()),profile_pic = database.get_profile(admission_no),exam_list=exam_list)
+    # Fetch structured student marks filtered to enrolled subjects
+    try:
+        student_marks = view_student_marks2(admission_no, enrolled_subjects)
+    except Exception:
+        student_marks = []
+
+    return render_template('examtrend.html', exam_scores=exam_scores, student_id=admission_no, student_marks=student_marks, length = len(student_marks), profile_pic = database.get_profile(admission_no), exam_list=exam_list, enrolled_subjects=enrolled_subjects)
 
 
 @app.route('/settings')
@@ -1080,10 +1088,44 @@ def view_student_marks():
     with sqlite3.connect('student.db') as conn:
         cursor = conn.cursor()
         cursor.execute('''
-        SELECT * FROM Examinations
+        SELECT * FROM marks
         WHERE admission_no = ?
         ''',(admission_no,))
     result = cursor.fetchall()
+    return result
+
+
+def view_student_marks2(admission_no, enrolled_subjects=None):
+    """Get student marks with unpacked subjects for template rendering, filtered to enrolled subjects only."""
+    if enrolled_subjects is None:
+        enrolled_subjects = []
+
+    with sqlite3.connect('student.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+        SELECT id, admission_no, year, term, exam_type, marks_json, average
+        FROM marks
+        WHERE admission_no = ?
+        ORDER BY year DESC, term DESC
+        ''',(admission_no,))
+        rows = cursor.fetchall()
+
+    result = []
+    for row in rows:
+        row_id, adm, year, term, exam_type, marks_json, avg = row
+        try:
+            marks = json.loads(marks_json) if marks_json else {}
+        except (json.JSONDecodeError, ValueError):
+            marks = {}
+
+        # Build tuple with only enrolled subjects (dynamic length based on actual enrollment)
+        subject_marks = tuple(marks.get(subj, '-') for subj in enrolled_subjects)
+        avg_val = avg if avg is not None else '-'
+
+        # Format: (id, year, term, exam_type, ...enrolled_subject_marks, avg)
+        # Subjects are in the order from enrolled_subjects list
+        result.append((row_id, year, term, exam_type) + subject_marks + (avg_val,))
+
     return result
 #===========================================Change Student Logins
 @app.route('/students_logins', methods=['GET', 'POST'])
@@ -1098,8 +1140,12 @@ def show_students():
         admission_number = request.form['admission_number']
         new_password = request.form['new_password']
 
-        # Update the password in the logins table
-        cursor.execute("UPDATE logins SET password = ? WHERE admission_no = ?", (new_password, admission_number))
+        # Update the password in the logins table; insert if missing
+        cursor.execute("SELECT 1 FROM logins WHERE admission_no = ?", (admission_number,))
+        if cursor.fetchone():
+            cursor.execute("UPDATE logins SET password = ? WHERE admission_no = ?", (new_password, admission_number))
+        else:
+            cursor.execute("INSERT INTO logins (admission_no, password) VALUES (?, ?)", (admission_number, new_password))
         conn.commit()
 
         # Fetch the email, first name, and last name for the given admission number
@@ -1137,7 +1183,7 @@ def show_students():
         cursor.execute('''
             SELECT COUNT(*)
             FROM students
-            JOIN logins ON students.admission_no = logins.admission_no
+            LEFT JOIN logins ON students.admission_no = logins.admission_no
             WHERE students.admission_no LIKE ? OR students.first_name LIKE ? OR students.last_name LIKE ?
         ''', (like_q, like_q, like_q))
         total = cursor.fetchone()[0]
@@ -1146,8 +1192,9 @@ def show_students():
         cursor.execute('''
             SELECT students.admission_no, students.first_name, students.last_name, logins.password
             FROM students
-            JOIN logins ON students.admission_no = logins.admission_no
+            LEFT JOIN logins ON students.admission_no = logins.admission_no
             WHERE students.admission_no LIKE ? OR students.first_name LIKE ? OR students.last_name LIKE ?
+            ORDER BY students.rowid DESC
             LIMIT ? OFFSET ?
         ''', (like_q, like_q, like_q, per_page, offset))
     else:
@@ -1155,7 +1202,7 @@ def show_students():
         cursor.execute('''
             SELECT COUNT(*)
             FROM students
-            JOIN logins ON students.admission_no = logins.admission_no
+            LEFT JOIN logins ON students.admission_no = logins.admission_no
         ''')
         total = cursor.fetchone()[0]
 
@@ -1163,11 +1210,14 @@ def show_students():
         cursor.execute('''
             SELECT students.admission_no, students.first_name, students.last_name, logins.password
             FROM students
-            JOIN logins ON students.admission_no = logins.admission_no
+            LEFT JOIN logins ON students.admission_no = logins.admission_no
+            ORDER BY students.rowid DESC
             LIMIT ? OFFSET ?
         ''', (per_page, offset))
 
     students = cursor.fetchall()
+    # normalize missing passwords to empty string for display
+    students = [(s[0], s[1], s[2], s[3] if s[3] is not None else '') for s in students]
     conn.close()
 
     # compute pagination metadata
