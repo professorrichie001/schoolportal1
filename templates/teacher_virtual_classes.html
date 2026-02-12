@@ -17,6 +17,7 @@
 
     <form method="POST" action="{{ url_for('teacher_virtual_classes') }}">
       <input type="hidden" id="timezone_offset" name="timezone_offset" value="">
+      <input type="hidden" id="scheduled_at_epoch_utc" name="scheduled_at_epoch_utc" value="">
       <div class="row g-3">
         <div class="col-md-6">
           <label for="title" class="form-label">Class Title</label>
@@ -83,7 +84,7 @@
                 <td>{{ vc.scheduled_at }}</td>
                 <td>
                   {% if vc.meeting_link %}
-                    <a href="{{ url_for('join_virtual_class', class_id=vc.id) }}">Open</a>
+                    <a href="{{ url_for('join_virtual_class', class_id=vc.id, viewer='teacher') }}">Open</a>
                     {% if vc.is_internal %}
                       <small class="text-success d-block">Built-in room</small>
                     {% endif %}
@@ -113,6 +114,8 @@
     const wrap = document.getElementById('meetingLinkWrap');
     const input = document.getElementById('meeting_link');
     const tzOffset = document.getElementById('timezone_offset');
+    const scheduledAt = document.getElementById('scheduled_at');
+    const scheduledAtEpoch = document.getElementById('scheduled_at_epoch_utc');
 
     function syncMeetingLinkField() {
       const needsCustomLink = mode.value === 'external_custom';
@@ -124,6 +127,23 @@
     mode.addEventListener('change', syncMeetingLinkField);
     syncMeetingLinkField();
     tzOffset.value = String(new Date().getTimezoneOffset());
+
+    function syncScheduledEpoch() {
+      if (!scheduledAt.value) {
+        scheduledAtEpoch.value = '';
+        return;
+      }
+      const dt = new Date(scheduledAt.value);
+      if (isNaN(dt.getTime())) {
+        scheduledAtEpoch.value = '';
+        return;
+      }
+      scheduledAtEpoch.value = String(Math.floor(dt.getTime() / 1000));
+    }
+
+    scheduledAt.addEventListener('change', syncScheduledEpoch);
+    scheduledAt.addEventListener('input', syncScheduledEpoch);
+    syncScheduledEpoch();
   })();
 </script>
 {% endblock %}

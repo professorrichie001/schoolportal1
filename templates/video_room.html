@@ -51,8 +51,23 @@
     let localStream = null;
     let pollTimer = null;
     const peers = new Map();
+    const remoteStreams = new Map();
+    const peerNames = new Map();
+    const pendingPlay = new Set();
+    const isSecureContextOk = window.isSecureContext || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 
     function setStatus(msg) { statusEl.textContent = msg; }
+    function appendStatus(msg) { statusEl.textContent = `${statusEl.textContent} ${msg}`; }
+
+    function describeMediaError(err) {
+      if (!err) return 'Unknown media error.';
+      if (err.name === 'NotAllowedError') return 'Permission denied. Allow camera and microphone in browser site settings.';
+      if (err.name === 'NotFoundError') return 'No camera/microphone detected on this device.';
+      if (err.name === 'NotReadableError') return 'Camera/microphone is busy in another app/tab.';
+      if (err.name === 'SecurityError') return 'Blocked by browser security policy. Use HTTPS.';
+      if (err.name === 'OverconstrainedError') return 'Requested camera settings are not supported.';
+      return `${err.name || 'Error'}: ${err.message || 'media access failed'}`;
+    }
 
     function addVideoTile(id, stream, name, muted = false) {
       let tile = document.getElementById(`tile-${id}`);
@@ -67,6 +82,10 @@
       video.srcObject = stream;
       video.muted = muted;
       tile.querySelector('.name').textContent = name || id;
+      const p = video.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => pendingPlay.add(video));
+      }
     }
 
     function removeVideoTile(id) {
@@ -76,9 +95,15 @@
 
     function createPeerConnection(remotePeerId, remoteName) {
       if (peers.has(remotePeerId)) return peers.get(remotePeerId);
+      if (remoteName) {
+        peerNames.set(remotePeerId, remoteName);
+      }
 
       const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ]
       });
 
       localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
@@ -90,7 +115,14 @@
       };
 
       pc.ontrack = (event) => {
-        addVideoTile(remotePeerId, event.streams[0], remoteName || remotePeerId, false);
+        let stream = remoteStreams.get(remotePeerId);
+        if (!stream) {
+          stream = new MediaStream();
+          remoteStreams.set(remotePeerId, stream);
+        }
+        stream.addTrack(event.track);
+        const label = peerNames.get(remotePeerId) || remoteName || remotePeerId;
+        addVideoTile(remotePeerId, stream, label, false);
       };
 
       peers.set(remotePeerId, { pc, name: remoteName || remotePeerId });
@@ -117,7 +149,11 @@
       const fromPeer = message.from_peer;
 
       if (type === 'peer-joined') {
-        await connectToPeer(fromPeer, message.name || fromPeer);
+        if (message.name) {
+          peerNames.set(fromPeer, message.name);
+        }
+        // Avoid offer glare: only the newly joined client sends offers (from /join peers list).
+        setStatus('Participant joined.');
         return;
       }
 
@@ -127,12 +163,16 @@
           peer.pc.close();
           peers.delete(fromPeer);
         }
+        remoteStreams.delete(fromPeer);
         removeVideoTile(fromPeer);
+        setStatus('Participant left.');
         return;
       }
 
       if (type === 'offer') {
-        const peer = createPeerConnection(fromPeer, fromPeer);
+        const resolvedName = peerNames.get(fromPeer) || message.name || fromPeer;
+        peerNames.set(fromPeer, resolvedName);
+        const peer = createPeerConnection(fromPeer, resolvedName);
         await peer.pc.setRemoteDescription(new RTCSessionDescription(message.payload));
         const answer = await peer.pc.createAnswer();
         await peer.pc.setLocalDescription(answer);
@@ -180,11 +220,41 @@
       if (!data.success) throw new Error(data.message || 'Join failed');
 
       for (const p of data.peers || []) {
+        if (p.name) {
+          peerNames.set(p.peer_id, p.name);
+        }
         await connectToPeer(p.peer_id, p.name);
       }
 
       pollTimer = setInterval(pollSignals, pollingMs);
-      setStatus('Connected. Waiting for participants...');
+      const total = (data.peers || []).length + 1;
+      if (total > 1) {
+        setStatus(`Connected. ${total} participants in room.`);
+      } else {
+        setStatus('Connected. Waiting for participants...');
+      }
+    }
+
+    async function getLocalMediaWithFallback() {
+      const attempts = [
+        {
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        },
+        { video: true, audio: true },
+        { video: true, audio: false },
+        { video: false, audio: true }
+      ];
+
+      let lastErr = null;
+      for (const constraints of attempts) {
+        try {
+          return await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      throw lastErr;
     }
 
     async function leaveRoom() {
@@ -223,14 +293,45 @@
 
     leaveBtn.addEventListener('click', leaveRoom);
     window.addEventListener('beforeunload', () => { navigator.sendBeacon(`/api/video/${roomCode}/leave`, new Blob([JSON.stringify({ peer_id: peerId })], { type: 'application/json' })); });
+    document.addEventListener('click', () => {
+      pendingPlay.forEach((video) => {
+        const p = video.play();
+        if (p && typeof p.then === 'function') {
+          p.then(() => pendingPlay.delete(video)).catch(() => {});
+        } else {
+          pendingPlay.delete(video);
+        }
+      });
+    });
 
     (async function init() {
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        if (!isSecureContextOk) {
+          setStatus('Camera/mic requires HTTPS. Open this room over https://');
+          return;
+        }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setStatus('This browser does not support camera/microphone capture.');
+          return;
+        }
+
+        localStream = await getLocalMediaWithFallback();
+        const audioTracks = localStream.getAudioTracks();
+        const videoTracks = localStream.getVideoTracks();
+        if (!audioTracks.length || !videoTracks.length) {
+          appendStatus(`(Limited devices: audio ${audioTracks.length ? 'ok' : 'missing'}, video ${videoTracks.length ? 'ok' : 'missing'})`);
+        }
+        if (!videoTracks.length) {
+          setStatus('Camera unavailable. Joined with microphone only.');
+        }
+        if (!audioTracks.length) {
+          setStatus('Microphone unavailable. Joined with camera only.');
+        }
+
         addVideoTile(peerId, localStream, `${displayName} (You)`, true);
         await joinRoom();
       } catch (e) {
-        setStatus('Camera/mic access denied or unavailable.');
+        setStatus(describeMediaError(e));
       }
     })();
   </script>

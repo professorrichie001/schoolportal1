@@ -26,7 +26,7 @@
                 <small class="text-muted">Scheduled: {{ vc.scheduled_at }}</small>
               </div>
               {% if vc.meeting_link %}
-                <a class="btn btn-primary btn-sm" href="{{ url_for('join_virtual_class', class_id=vc.id) }}">Join</a>
+                <a class="btn btn-primary btn-sm" href="{{ url_for('join_virtual_class', class_id=vc.id, viewer='student') }}">Join</a>
               {% else %}
                 <button class="btn btn-secondary btn-sm" type="button" disabled>Invalid Link</button>
               {% endif %}

@@ -113,6 +113,31 @@ def manager_signup_required():
         count = cursor.fetchone()[0]
     return count == 0
 
+
+def resolve_session_role():
+    role = session.get('role')
+    if role in ('student', 'teacher', 'manager'):
+        return role
+
+    has_student = bool(session.get('admission_no'))
+    has_teacher = bool(session.get('userName'))
+    has_manager = bool(session.get('username'))
+
+    inferred = None
+    if has_student and not has_teacher and not has_manager:
+        inferred = 'student'
+    elif has_teacher and not has_student and not has_manager:
+        inferred = 'teacher'
+    elif has_manager and not has_student and not has_teacher:
+        inferred = 'manager'
+    elif has_student and has_teacher and not has_manager:
+        # Legacy mixed sessions: prefer student only when explicitly needed by route logic.
+        inferred = 'student'
+
+    if inferred:
+        session['role'] = inferred
+    return inferred
+
 @app.route('/', methods=['GET', 'POST'])
 def login():
     if manager_signup_required():
@@ -138,7 +163,9 @@ def login():
                 if is_locked == 1:
                     return render_template('login.html', error="Your portal is locked. Please contact administration.")
                 if stored_password == password:
+                    session.clear()
                     session['admission_no'] = admission_no
+                    session['role'] = 'student'
                     return redirect(url_for('home'))
 
         with sqlite3.connect('manager.db') as conn:
@@ -151,7 +178,9 @@ def login():
             ''', (admission_no, password))
             count = cursor.fetchone()[0]
             if count > 0:
+                session.clear()
                 session['username'] = admission_no
+                session['role'] = 'manager'
                 return redirect(url_for('manager_dashboard'))
             else:
                 with sqlite3.connect('admin.db') as conn:
@@ -168,7 +197,9 @@ def login():
                         if is_locked == 1:
                             return render_template('login.html', error="Your portal is locked. Please contact administration.")
                         if stored_password == password:
+                            session.clear()
                             session['userName'] = admission_no
+                            session['role'] = 'teacher'
                             return redirect(url_for('admin_dashboard'))
 
         return render_template('login.html', error="Invalid admission number or password")
@@ -247,6 +278,8 @@ def manager_signup():
 @app.route('/home')
 def home():
     admission_no = session.get('admission_no')
+    if not admission_no:
+        return redirect(url_for('login'))
     admission_number = session.get('admission_no')
     dates, amounts, remaining_balance = graph2.profile(admission_number)
     return render_template('home.html', name=database.get_first_name(admission_no),sname=database.get_last_name(admission_no),email=database.get_email(admission_no),phone = database.get_phone(admission_no), gender= database.get_gender(admission_no),profile_pic = database.get_profile(admission_no),
@@ -541,8 +574,7 @@ def trainer2():
 
 @app.route('/logout')
 def logout():
-    admission_no = session.get('admission_no')
-    profile_pic = database.get_profile(admission_no)
+    session.clear()
     return redirect(url_for('login'))
 
 
@@ -729,6 +761,36 @@ def ensure_virtual_classes_schema():
             cursor.execute("ALTER TABLE virtual_classes ADD COLUMN created_at DATETIME")
         if "scheduled_at_utc" not in cols:
             cursor.execute("ALTER TABLE virtual_classes ADD COLUMN scheduled_at_utc TEXT")
+        if "scheduled_at_epoch_utc" not in cols:
+            cursor.execute("ALTER TABLE virtual_classes ADD COLUMN scheduled_at_epoch_utc INTEGER")
+        if "scheduled_tz_offset_minutes" not in cols:
+            cursor.execute("ALTER TABLE virtual_classes ADD COLUMN scheduled_tz_offset_minutes INTEGER")
+        conn.commit()
+
+
+def ensure_video_signal_schema():
+    with sqlite3.connect('admin.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS video_participants (
+                room_code TEXT NOT NULL,
+                peer_id TEXT NOT NULL,
+                name TEXT,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (room_code, peer_id)
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS video_signals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                room_code TEXT NOT NULL,
+                to_peer TEXT NOT NULL,
+                from_peer TEXT NOT NULL,
+                type TEXT NOT NULL,
+                payload TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
         conn.commit()
 
 
@@ -753,6 +815,48 @@ def parse_scheduled_at(value):
 def local_to_utc(local_dt, tz_offset_minutes):
     # JS getTimezoneOffset() gives UTC-local in minutes.
     return local_dt + timedelta(minutes=tz_offset_minutes)
+
+
+def normalize_epoch_seconds(value):
+    if value in (None, ""):
+        return None
+    try:
+        epoch = int(value)
+    except (TypeError, ValueError):
+        return None
+    # Browser Date.getTime() is milliseconds.
+    if epoch > 10**12:
+        epoch //= 1000
+    if epoch < 0:
+        return None
+    return epoch
+
+
+def derive_open_epoch(scheduled_at, scheduled_at_utc, scheduled_at_epoch_utc, scheduled_tz_offset_minutes):
+    # Legacy rows (created before timezone metadata) can carry incorrect UTC conversions.
+    # To avoid "permanent" lock behavior, do not enforce time lock for those rows.
+    if scheduled_tz_offset_minutes is None:
+        return None
+
+    open_epoch = normalize_epoch_seconds(scheduled_at_epoch_utc)
+    if open_epoch is not None:
+        return open_epoch
+
+    if scheduled_at and scheduled_tz_offset_minutes is not None:
+        local_dt = parse_scheduled_at(scheduled_at)
+        if local_dt:
+            try:
+                offset = int(scheduled_tz_offset_minutes)
+            except (TypeError, ValueError):
+                offset = 0
+            utc_dt = local_to_utc(local_dt, offset)
+            return int((utc_dt - datetime(1970, 1, 1)).total_seconds())
+
+    if scheduled_at_utc:
+        open_dt = parse_scheduled_at(scheduled_at_utc)
+        if open_dt:
+            return int((open_dt - datetime(1970, 1, 1)).total_seconds())
+    return None
 
 
 def class_matches(target_class, class_id):
@@ -825,7 +929,8 @@ def student_class_id(admission_no):
 @app.route('/teacher/virtual_classes', methods=['GET', 'POST'])
 def teacher_virtual_classes():
     teacher_id = session.get('userName')
-    if not teacher_id:
+    session_role = resolve_session_role()
+    if not teacher_id or session_role != 'teacher':
         return redirect(url_for('login'))
 
     ensure_virtual_classes_schema()
@@ -839,6 +944,7 @@ def teacher_virtual_classes():
         meeting_link = request.form.get('meeting_link', '').strip()
         scheduled_at = request.form.get('scheduled_at', '').strip()
         timezone_offset = request.form.get('timezone_offset', '').strip()
+        scheduled_at_epoch_utc_raw = request.form.get('scheduled_at_epoch_utc', '').strip()
         notes = request.form.get('notes', '').strip()
 
         if not title or not target_class:
@@ -852,6 +958,8 @@ def teacher_virtual_classes():
         room_code = None
         is_internal = 0
         scheduled_at_utc = None
+        scheduled_at_epoch_utc = None
+        scheduled_tz_offset_minutes = None
 
         if scheduled_at:
             local_schedule = parse_scheduled_at(scheduled_at)
@@ -859,10 +967,20 @@ def teacher_virtual_classes():
                 flash('Invalid scheduled date/time format.')
                 return redirect(url_for('teacher_virtual_classes'))
             try:
-                tz_offset_minutes = int(timezone_offset) if timezone_offset else 0
+                scheduled_tz_offset_minutes = int(timezone_offset) if timezone_offset else 0
             except ValueError:
-                tz_offset_minutes = 0
-            scheduled_at_utc = local_to_utc(local_schedule, tz_offset_minutes).strftime("%Y-%m-%d %H:%M:%S")
+                scheduled_tz_offset_minutes = 0
+
+            # Source of truth: teacher local datetime + browser timezone offset.
+            utc_dt = local_to_utc(local_schedule, scheduled_tz_offset_minutes)
+            scheduled_at_utc = utc_dt.strftime("%Y-%m-%d %H:%M:%S")
+            scheduled_at_epoch_utc = int((utc_dt - datetime(1970, 1, 1)).total_seconds())
+
+            # Optional client epoch fallback if offset was missing.
+            client_epoch = normalize_epoch_seconds(scheduled_at_epoch_utc_raw)
+            if (timezone_offset in (None, "", "0")) and client_epoch is not None:
+                scheduled_at_epoch_utc = client_epoch
+                scheduled_at_utc = datetime.utcfromtimestamp(client_epoch).strftime("%Y-%m-%d %H:%M:%S")
 
         if meeting_mode == 'external_random':
             meeting_link = f"https://meet.jit.si/schoolportal-{uuid.uuid4().hex[:12]}"
@@ -875,21 +993,23 @@ def teacher_virtual_classes():
                 return redirect(url_for('teacher_virtual_classes'))
         else:
             room_code = f"room-{uuid.uuid4().hex[:10]}"
-            meeting_link = url_for('video_room', room_code=room_code, _external=True)
+            meeting_link = url_for('video_room', room_code=room_code)
             is_internal = 1
 
         with sqlite3.connect('admin.db') as conn:
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO virtual_classes
-                (title, target_class, meeting_link, scheduled_at, scheduled_at_utc, notes, created_by, is_internal, room_code)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (title, target_class, meeting_link, scheduled_at, scheduled_at_utc, scheduled_at_epoch_utc, scheduled_tz_offset_minutes, notes, created_by, is_internal, room_code)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 title,
                 target_class,
                 meeting_link,
                 scheduled_at if scheduled_at else None,
                 scheduled_at_utc,
+                scheduled_at_epoch_utc,
+                scheduled_tz_offset_minutes,
                 notes if notes else None,
                 teacher_id,
                 is_internal,
@@ -956,7 +1076,11 @@ def delete_virtual_class(class_id):
 @app.route('/student/virtual_classes')
 def student_virtual_classes():
     admission_no = session.get('admission_no')
-    if not admission_no:
+    session_role = resolve_session_role()
+    if admission_no and session_role != 'student':
+        session['role'] = 'student'
+        session_role = 'student'
+    if not admission_no or session_role != 'student':
         return redirect(url_for('login'))
 
     ensure_virtual_classes_schema()
@@ -1007,14 +1131,36 @@ def student_virtual_classes():
 def join_virtual_class(class_id):
     teacher_id = session.get('userName')
     admission_no = session.get('admission_no')
-    if not teacher_id and not admission_no:
+    session_role = resolve_session_role()
+    viewer = request.args.get('viewer', '').strip().lower()
+
+    # Recover from legacy sessions missing/incorrect role while preserving explicit viewer intent.
+    if viewer == 'student' and admission_no and session_role != 'student':
+        session['role'] = 'student'
+        session_role = 'student'
+    elif viewer == 'teacher' and teacher_id and session_role != 'teacher':
+        session['role'] = 'teacher'
+        session_role = 'teacher'
+
+    # Deterministic role resolution to prevent mixed-session identity leaks.
+    is_teacher = bool(teacher_id) and session_role != 'student'
+    is_student = bool(admission_no) and (session_role == 'student' or not is_teacher)
+
+    if not is_teacher and not is_student:
+        return redirect(url_for('login'))
+
+    if viewer == 'student' and session_role != 'student':
+        flash('Please log in as student to join this class.')
+        return redirect(url_for('login'))
+    if viewer == 'teacher' and session_role != 'teacher':
+        flash('Please log in as teacher to open this class.')
         return redirect(url_for('login'))
 
     ensure_virtual_classes_schema()
     with sqlite3.connect('admin.db') as conn:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT id, title, target_class, meeting_link, scheduled_at, scheduled_at_utc, created_by
+            SELECT id, title, target_class, meeting_link, scheduled_at, scheduled_at_utc, scheduled_at_epoch_utc, scheduled_tz_offset_minutes, created_by, is_internal, room_code
             FROM virtual_classes
             WHERE id = ?
         ''', (class_id,))
@@ -1022,7 +1168,7 @@ def join_virtual_class(class_id):
 
     if not row:
         flash('Virtual class not found.')
-        if admission_no:
+        if is_student:
             return redirect(url_for('student_virtual_classes'))
         return redirect(url_for('teacher_virtual_classes'))
 
@@ -1030,20 +1176,33 @@ def join_virtual_class(class_id):
     meeting_link = row[3]
     scheduled_at = row[4]
     scheduled_at_utc = row[5]
+    scheduled_at_epoch_utc = row[6]
+    scheduled_tz_offset_minutes = row[7]
+    is_internal = bool(row[9]) if row[9] is not None else False
+    room_code = row[10]
 
-    if admission_no:
+    if is_student:
         class_id_for_student = student_class_id(admission_no)
         if not class_matches(target_class, class_id_for_student):
             flash('You are not authorized for this virtual class.')
             return redirect(url_for('student_virtual_classes'))
 
-    open_time_utc = parse_scheduled_at(scheduled_at_utc)
-    if open_time_utc and datetime.utcnow() < open_time_utc:
-        display_time = scheduled_at if scheduled_at else f"{open_time_utc.strftime('%Y-%m-%d %H:%M')} UTC"
+    open_epoch = derive_open_epoch(
+        scheduled_at,
+        scheduled_at_utc,
+        scheduled_at_epoch_utc,
+        scheduled_tz_offset_minutes
+    )
+
+    if open_epoch is not None and int(time.time()) < open_epoch:
+        display_time = scheduled_at if scheduled_at else f"{datetime.utcfromtimestamp(open_epoch).strftime('%Y-%m-%d %H:%M')} UTC"
         flash(f'Room opens at {display_time}.')
-        if admission_no:
+        if is_student:
             return redirect(url_for('student_virtual_classes'))
         return redirect(url_for('teacher_virtual_classes'))
+
+    if is_internal and room_code:
+        return redirect(url_for('video_room', room_code=room_code))
 
     return redirect(meeting_link)
 
@@ -1052,14 +1211,18 @@ def join_virtual_class(class_id):
 def video_room(room_code):
     teacher_id = session.get('userName')
     admission_no = session.get('admission_no')
-    if not teacher_id and not admission_no:
+    session_role = resolve_session_role()
+    is_teacher = bool(teacher_id) and session_role == 'teacher'
+    is_student = bool(admission_no) and session_role == 'student'
+
+    if not is_teacher and not is_student:
         return redirect(url_for('login'))
 
     ensure_virtual_classes_schema()
     with sqlite3.connect('admin.db') as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT title, target_class, scheduled_at, scheduled_at_utc FROM virtual_classes WHERE room_code = ?",
+            "SELECT title, target_class, scheduled_at, scheduled_at_utc, scheduled_at_epoch_utc, scheduled_tz_offset_minutes FROM virtual_classes WHERE room_code = ?",
             (room_code,)
         )
         row = cursor.fetchone()
@@ -1068,27 +1231,43 @@ def video_room(room_code):
     target_class = row[1] if row else None
     scheduled_at = row[2] if row else None
     scheduled_at_utc = row[3] if row else None
+    scheduled_at_epoch_utc = row[4] if row else None
+    scheduled_tz_offset_minutes = row[5] if row else None
 
-    open_time_utc = parse_scheduled_at(scheduled_at_utc)
-    if open_time_utc and datetime.utcnow() < open_time_utc:
-        display_time = scheduled_at if scheduled_at else f"{open_time_utc.strftime('%Y-%m-%d %H:%M')} UTC"
+    open_epoch = derive_open_epoch(
+        scheduled_at,
+        scheduled_at_utc,
+        scheduled_at_epoch_utc,
+        scheduled_tz_offset_minutes
+    )
+
+    if open_epoch is not None and int(time.time()) < open_epoch:
+        display_time = scheduled_at if scheduled_at else f"{datetime.utcfromtimestamp(open_epoch).strftime('%Y-%m-%d %H:%M')} UTC"
         flash(f'Room opens at {display_time}.')
-        if admission_no:
+        if is_student:
             return redirect(url_for('student_virtual_classes'))
         return redirect(url_for('teacher_virtual_classes'))
 
-    if admission_no and target_class:
+    if is_student and admission_no and target_class:
         class_id = student_class_id(admission_no)
         if not class_matches(target_class, class_id):
             flash('You are not authorized for this virtual class.')
             return redirect(url_for('student_virtual_classes'))
 
-    if teacher_id:
-        user_name = teacher_id
-        role = "teacher"
-    else:
-        user_name = admission_no
+    if is_student and admission_no:
         role = "student"
+        first_name = database.get_first_name(admission_no) or ""
+        last_name = database.get_last_name(admission_no) or ""
+        full_name = f"{first_name} {last_name}".strip()
+        user_name = f"{full_name} (Adm: {admission_no})" if full_name else f"Student (Adm: {admission_no})"
+    elif is_teacher and teacher_id:
+        role = "teacher"
+        first_name = database.get_first_name_t(teacher_id) or ""
+        last_name = database.get_last_name_t(teacher_id) or ""
+        full_name = f"{first_name} {last_name}".strip()
+        user_name = f"{full_name} (Teacher @{teacher_id})" if full_name else f"Teacher @{teacher_id}"
+    else:
+        return redirect(url_for('login'))
 
     return render_template(
         'video_room.html',
@@ -1107,29 +1286,28 @@ def video_join(room_code):
     if not peer_id:
         return jsonify({'success': False, 'message': 'peer_id required'}), 400
 
-    with video_signal_lock:
-        room = video_signal_state.setdefault(room_code, {
-            'participants': {},
-            'messages': {}
-        })
+    ensure_video_signal_schema()
+    with sqlite3.connect('admin.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT peer_id, COALESCE(name, peer_id)
+            FROM video_participants
+            WHERE room_code = ? AND peer_id != ?
+        ''', (room_code, peer_id))
+        existing_peers = [{'peer_id': row[0], 'name': row[1]} for row in cursor.fetchall()]
 
-        existing_peers = [
-            {'peer_id': pid, 'name': pdata.get('name', pid)}
-            for pid, pdata in room['participants'].items()
-            if pid != peer_id
-        ]
+        cursor.execute('''
+            INSERT OR REPLACE INTO video_participants (room_code, peer_id, name, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+        ''', (room_code, peer_id, peer_name))
 
-        room['participants'][peer_id] = {'name': peer_name}
-        room['messages'].setdefault(peer_id, [])
-
-        for pid in room['participants'].keys():
-            if pid == peer_id:
-                continue
-            room['messages'].setdefault(pid, []).append({
-                'type': 'peer-joined',
-                'from_peer': peer_id,
-                'name': peer_name
-            })
+        join_payload = json.dumps({'name': peer_name})
+        for peer in existing_peers:
+            cursor.execute('''
+                INSERT INTO video_signals (room_code, to_peer, from_peer, type, payload, created_at)
+                VALUES (?, ?, ?, 'peer-joined', ?, CURRENT_TIMESTAMP)
+            ''', (room_code, peer['peer_id'], peer_id, join_payload))
+        conn.commit()
 
     return jsonify({'success': True, 'peers': existing_peers})
 
@@ -1145,28 +1323,55 @@ def video_signal(room_code):
     if not to_peer or not from_peer or not signal_type:
         return jsonify({'success': False, 'message': 'to_peer, from_peer and type are required'}), 400
 
-    with video_signal_lock:
-        room = video_signal_state.setdefault(room_code, {
-            'participants': {},
-            'messages': {}
-        })
-        room['messages'].setdefault(to_peer, []).append({
-            'type': signal_type,
-            'from_peer': from_peer,
-            'payload': signal_payload
-        })
+    ensure_video_signal_schema()
+    payload_json = json.dumps(signal_payload) if signal_payload is not None else None
+    with sqlite3.connect('admin.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO video_signals (room_code, to_peer, from_peer, type, payload, created_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ''', (room_code, to_peer, from_peer, signal_type, payload_json))
+        conn.commit()
 
     return jsonify({'success': True})
 
 
 @app.route('/api/video/<room_code>/poll/<peer_id>')
 def video_poll(room_code, peer_id):
-    with video_signal_lock:
-        room = video_signal_state.get(room_code)
-        if not room:
-            return jsonify({'success': True, 'messages': []})
-        messages = room['messages'].get(peer_id, [])
-        room['messages'][peer_id] = []
+    ensure_video_signal_schema()
+    with sqlite3.connect('admin.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, type, from_peer, payload
+            FROM video_signals
+            WHERE room_code = ? AND to_peer = ?
+            ORDER BY id ASC
+        ''', (room_code, peer_id))
+        rows = cursor.fetchall()
+
+        messages = []
+        ids = []
+        for row in rows:
+            ids.append(row[0])
+            payload = None
+            if row[3]:
+                try:
+                    payload = json.loads(row[3])
+                except Exception:
+                    payload = row[3]
+            msg = {
+                'type': row[1],
+                'from_peer': row[2]
+            }
+            if isinstance(payload, dict) and 'name' in payload:
+                msg['name'] = payload.get('name')
+            if payload is not None:
+                msg['payload'] = payload
+            messages.append(msg)
+
+        if ids:
+            cursor.executemany('DELETE FROM video_signals WHERE id = ?', [(mid,) for mid in ids])
+            conn.commit()
     return jsonify({'success': True, 'messages': messages})
 
 
@@ -1177,24 +1382,31 @@ def video_leave(room_code):
     if not peer_id:
         return jsonify({'success': False, 'message': 'peer_id required'}), 400
 
-    with video_signal_lock:
-        room = video_signal_state.get(room_code)
-        if not room:
-            return jsonify({'success': True})
+    ensure_video_signal_schema()
+    with sqlite3.connect('admin.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM video_participants WHERE room_code = ? AND peer_id = ?', (room_code, peer_id))
 
-        if peer_id in room['participants']:
-            del room['participants'][peer_id]
-        if peer_id in room['messages']:
-            del room['messages'][peer_id]
+        cursor.execute('''
+            SELECT peer_id
+            FROM video_participants
+            WHERE room_code = ?
+        ''', (room_code,))
+        remaining = [row[0] for row in cursor.fetchall()]
 
-        for pid in room['participants'].keys():
-            room['messages'].setdefault(pid, []).append({
-                'type': 'peer-left',
-                'from_peer': peer_id
-            })
+        for pid in remaining:
+            cursor.execute('''
+                INSERT INTO video_signals (room_code, to_peer, from_peer, type, payload, created_at)
+                VALUES (?, ?, ?, 'peer-left', NULL, CURRENT_TIMESTAMP)
+            ''', (room_code, pid, peer_id))
 
-        if not room['participants']:
-            del video_signal_state[room_code]
+        cursor.execute('DELETE FROM video_signals WHERE room_code = ? AND to_peer = ?', (room_code, peer_id))
+
+        if not remaining:
+            cursor.execute('DELETE FROM video_signals WHERE room_code = ?', (room_code,))
+            cursor.execute('DELETE FROM video_participants WHERE room_code = ?', (room_code,))
+
+        conn.commit()
 
     return jsonify({'success': True})
 
