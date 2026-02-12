@@ -14,7 +14,7 @@
 .form-control { width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; font-size: 14px; box-sizing: border-box; }
 .form-control:focus { border-color: #28a745; outline: none; }
 .video-container { width: 100%; max-width: 400px; margin: 15px auto; border: 2px solid #28a745; border-radius: 8px; overflow: hidden; background: #000; }
-#scanner { width: 100%; height: 300px; object-fit: cover; display: block; }
+#scannerVideo { width: 100%; height: 300px; object-fit: cover; display: block; }
 .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: 600; font-size: 14px; }
 .btn-success { background: #28a745; color: white; }
 .btn-success:hover { background: #218838; }
@@ -48,19 +48,20 @@
 
   <div class="checkout-section">
     <div class="scanner-toggle">
-      <button class="active" onclick="toggleMode('scanner')"><i class="fas fa-qrcode"></i> QR Scanner</button>
-      <button onclick="toggleMode('manual')"><i class="fas fa-keyboard"></i> Manual Entry</button>
+      <button class="active" onclick="toggleMode('scanner', event)"><i class="fas fa-qrcode"></i> QR Scanner</button>
+      <button onclick="toggleMode('manual', event)"><i class="fas fa-keyboard"></i> Manual Entry</button>
     </div>
 
     <div id="scannerMode">
-      <label>Python QR Code Scanner</label>
+      <label>Browser QR Code Scanner (This device camera)</label>
       <div class="video-container">
-        <img id="scanner" alt="Camera feed from server" />
+        <video id="scannerVideo" autoplay playsinline muted></video>
+        <canvas id="scannerCanvas" style="display:none;"></canvas>
       </div>
       <div class="scanning-status" id="scanningStatus">Ready to scan...</div>
       <div class="btn-group">
-        <button class="btn btn-success" onclick="startPythonScanner()"><i class="fas fa-play"></i> Start Scanner</button>
-        <button class="btn btn-secondary" onclick="stopPythonScanner()"><i class="fas fa-stop"></i> Stop</button>
+        <button class="btn btn-success" onclick="startBrowserScanner()"><i class="fas fa-play"></i> Start Scanner</button>
+        <button class="btn btn-secondary" onclick="stopBrowserScanner()"><i class="fas fa-stop"></i> Stop</button>
       </div>
     </div>
 
@@ -84,67 +85,114 @@
 <script>
 let scannerActive = false;
 let scannerInterval = null;
+let scannerStream = null;
+let scannerBusy = false;
+const SCAN_INTERVAL_MS = 700;
 
-function toggleMode(mode) {
+function toggleMode(mode, evt) {
   document.getElementById('scannerMode').style.display = mode === 'scanner' ? 'block' : 'none';
   document.getElementById('manualMode').style.display = mode === 'manual' ? 'block' : 'none';
   document.querySelectorAll('.scanner-toggle button').forEach(btn => btn.classList.remove('active'));
-  event.target.classList.add('active');
-  if (mode === 'scanner') startPythonScanner();
-  else stopPythonScanner();
+  if (evt && evt.target) evt.target.classList.add('active');
+  if (mode === 'scanner') startBrowserScanner();
+  else stopBrowserScanner();
 }
 
-function startPythonScanner() {
+async function startBrowserScanner() {
   if (scannerActive) return;
-  
-  scannerActive = true;
-  updateScanningStatus('Starting Python QR scanner...', true);
-  
-  // Scan every 500ms
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    updateScanningStatus('Camera access is not supported in this browser.', false);
+    return;
+  }
+
+  const isSecureContext = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  if (!isSecureContext) {
+    updateScanningStatus('Camera requires HTTPS (or localhost).', false);
+    return;
+  }
+
+  try {
+    scannerStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } },
+      audio: false
+    });
+
+    const video = document.getElementById('scannerVideo');
+    video.srcObject = scannerStream;
+    await video.play();
+
+    scannerActive = true;
+    updateScanningStatus('Scanner started. Point camera to QR code...', true);
+  } catch (err) {
+    updateScanningStatus('Camera error: ' + err.message, false);
+    console.error('Camera start error:', err);
+    return;
+  }
+
   scannerInterval = setInterval(() => {
-    performPythonQRScan();
-  }, 500);
+    performBrowserQRScan();
+  }, SCAN_INTERVAL_MS);
 }
 
-function stopPythonScanner() {
+function stopBrowserScanner() {
   scannerActive = false;
   if (scannerInterval) {
     clearInterval(scannerInterval);
     scannerInterval = null;
   }
+  if (scannerStream) {
+    scannerStream.getTracks().forEach(track => track.stop());
+    scannerStream = null;
+  }
+  scannerBusy = false;
+  const video = document.getElementById('scannerVideo');
+  if (video) video.srcObject = null;
   updateScanningStatus('Scanner stopped', false);
 }
 
-function performPythonQRScan() {
-  if (!scannerActive) return;
-  
-  fetch('/scan_qr_python', {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json' }
-  })
-  .then(response => response.json())
-  .then(data => {
-    // Display camera frame
-    if (data.frame) {
-      const img = document.getElementById('scanner');
-      img.src = 'data:image/jpeg;base64,' + data.frame;
-    }
-    
-    // If QR code detected
+async function performBrowserQRScan() {
+  if (!scannerActive || scannerBusy) return;
+
+  const video = document.getElementById('scannerVideo');
+  if (!video || video.readyState < 2) return;
+
+  const canvas = document.getElementById('scannerCanvas');
+  const width = video.videoWidth || 640;
+  const height = video.videoHeight || 480;
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, width, height);
+
+  const imageBase64 = canvas.toDataURL('image/jpeg', 0.75);
+  scannerBusy = true;
+
+  try {
+    const response = await fetch('/scan_qr_from_image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: imageBase64 })
+    });
+
+    const data = await response.json();
+
     if (data.success && data.qr_detected && data.admission_no) {
       updateScanningStatus('QR code detected! Processing...', true);
+      stopBrowserScanner();
       markCheckout(data.admission_no);
-      stopPythonScanner();
     } else if (data.qr_detected && !data.admission_no) {
       updateScanningStatus('QR detected but invalid format', false);
     } else {
       updateScanningStatus('Scanning for QR codes...', true);
     }
-  })
-  .catch(err => {
+  } catch (err) {
     updateScanningStatus('Scanning error: ' + err.message, false);
     console.error('Scan error:', err);
-  });
+  } finally {
+    scannerBusy = false;
+  }
 }
 
 function updateScanningStatus(message, isActive) {
@@ -189,7 +237,7 @@ function markCheckout(admissionNo) {
       
       // Restart scanner after a delay
       if (scannerActive === false) {
-        setTimeout(() => startPythonScanner(), 2000);
+        setTimeout(() => startBrowserScanner(), 2000);
       }
     } else {
       showMessage(data.message, 'error');
@@ -259,12 +307,12 @@ function showMessage(message, type) {
 window.addEventListener('load', () => {
   document.getElementById('admissionInput').focus();
   loadAndDisplayCheckoutStudents();
-  setTimeout(() => startPythonScanner(), 500);
+  setTimeout(() => startBrowserScanner(), 500);
 });
 
 // Stop scanner when page unloads
 window.addEventListener('beforeunload', () => {
-  stopPythonScanner();
+  stopBrowserScanner();
 });
 </script>
 
