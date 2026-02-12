@@ -1,121 +1,374 @@
 {% extends "admin_dashboard.html" %}
 {% block content %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        /* General Page Styles */
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #f0f0f0;
-            font-family: Arial, sans-serif;
-        }
+<style>
+  :root {
+    --td-bg: #f4f7fb;
+    --td-text: #10243a;
+    --td-muted: #6a7f95;
+    --td-line: #dbe5ef;
+    --td-accent: #0f6d9f;
+  }
+  .teacher-shell {
+    background: radial-gradient(circle at 0% 0%, #e5f2fb 0%, transparent 40%),
+                radial-gradient(circle at 100% 100%, #e7f8f1 0%, transparent 40%),
+                var(--td-bg);
+    border-radius: 16px;
+    padding: 16px;
+  }
+  .teacher-hero {
+    border-radius: 18px;
+    padding: 22px;
+   background: linear-gradient(135deg, #1f5f8b 0%, #2980b9 55%, #4aa3df 100%);
 
-        /* Profile Card Container */
-        .profile-container {
-            max-width: 400px;
-            margin: 20px auto;
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            text-align: center;
-        }
+    color: #fff;
+    margin-bottom: 16px;
+    box-shadow: 0 12px 26px rgba(16, 45, 75, 0.24);
+  }
+  .teacher-hero h4 {
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    margin-bottom: 2px;
+  }
+  .teacher-meta {
+    font-size: 13px;
+    opacity: 0.94;
+  }
+  .teacher-chip-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .teacher-chip {
+    background: rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    color: #fff;
+    border-radius: 999px;
+    font-size: 12px;
+    padding: 5px 11px;
+  }
+  .card-flat {
+    border: 1px solid var(--td-line);
+    border-radius: 14px;
+    box-shadow: 0 6px 18px rgba(18, 38, 63, 0.06);
+    background: #fff;
+  }
+  .section-title {
+    color: var(--td-text);
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  .quick-link {
+    display: block;
+    text-decoration: none;
+    color: var(--td-text);
+    border: 1px solid var(--td-line);
+    border-radius: 12px;
+    padding: 14px;
+    height: 100%;
+    transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+    background: linear-gradient(180deg, #ffffff 0%, #fdfefe 100%);
+  }
+  .quick-link:hover {
+    transform: translateY(-2px);
+    border-color: #bfd3e3;
+    box-shadow: 0 10px 22px rgba(18, 38, 63, 0.09);
+    color: var(--td-text);
+  }
+  .quick-link h6 {
+    margin-bottom: 6px;
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .small-muted {
+    color: var(--td-muted);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .teacher-avatar {
+    width: 92px;
+    height: 92px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #d8e6f0;
+    box-shadow: 0 6px 16px rgba(16, 45, 75, 0.12);
+  }
+  .teacher-name {
+    color: var(--td-text);
+    font-weight: 700;
+    letter-spacing: 0.2px;
+  }
+  .priority-list {
+    padding-left: 18px;
+    margin: 0;
+  }
+  .priority-list li {
+    margin-bottom: 7px;
+  }
+  .cta-btn {
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-weight: 600;
+  }
+  .kpi-card {
+    border: 1px solid var(--td-line);
+    border-radius: 12px;
+    background: #fff;
+    padding: 12px 14px;
+    box-shadow: 0 4px 12px rgba(18, 38, 63, 0.05);
+  }
+  .kpi-label {
+    color: var(--td-muted);
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+  .kpi-value {
+    color: var(--td-text);
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+  .graph-card {
+    border: 1px solid var(--td-line);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 6px 18px rgba(18, 38, 63, 0.06);
+  }
+  .graph-wrap {
+    position: relative;
+    height: 270px;
+  }
+</style>
 
-        /* Profile Picture */
-        .profile-pic {
-            width: 100px;
-            height: 100px;
-            border-radius: 50%;
-            object-fit: cover;
-            margin-bottom: 10px;
-            border: 3px solid #4caf50;
-        }
-
-        /* Profile Information */
-        h3 {
-            margin: 10px 0;
-            color: #333;
-            font-size: 24px;
-        }
-
-        p {
-            margin: 5px 0;
-            color: #555;
-            font-size: 14px;
-        }
-
-        /* Progress Bar Container */
-        .progress-container {
-            margin-top: 20px;
-            text-align: left;
-        }
-
-        /* Progress Label */
-        .progress-label {
-            color: #333;
-            margin-bottom: 5px;
-            font-weight: bold;
-        }
-
-        /* Progress Bar */
-        .progress-bar {
-            width: 100%;
-            background-color: #e0e0e0;
-            border-radius: 5px;
-            overflow: hidden;
-            height: 20px;
-            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
-
-        /* Progress Fill */
-        .progress-bar-fill {
-            width: 30%;
-            height: 100%;
-            background-color: #4caf50;
-        }
-
-        /* Graph Container */
-        .graph-container {
-            max-width: 800px;
-            margin: 20px auto;
-            padding: 20px;
-            background-color: white;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
-            min-height: 300px; /* Ensures the container is tall enough */
-        }
-
-        /* Section Title */
-        .section-title {
-            text-align: center;
-            color: #333;
-            margin: 30px 0 20px;
-            font-size: 24px;
-        }
-
-        /* Ensure the canvas takes the full width of its container */
-        canvas {
-            width: 100% !important;
-            max-height: 400px; /* Prevents chart from shrinking too much */
-        }
-    </style>
-
-    <!-- Profile Card -->
-    <div class="profile-container">
-        <img src="{{profile_pic}}" alt="Profile Pic" class="profile-pic">
-        <h3>{{name}} {{sname}}</h3>
-        <p>Email: {{email}}</p>
-        <p>Phone: {{phone}}</p>
-        <p>Gender: {{gender}}</p>
-        <p>Join Date: {{join_date}}</p>
-
-        <div class="progress-container">
-            <p class="progress-label">Progress to End of the Academic Year: 30%</p>
-            <div class="progress-bar">
-                <div class="progress-bar-fill"></div>
-            </div>
+<div class="teacher-shell">
+  <div class="teacher-hero">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+      <div>
+        <h4 class="mb-1">Teacher Dashboard</h4>
+        <div class="teacher-meta">Welcome back, {{ name }} {{ sname }}</div>
+        <div class="teacher-meta" id="teacherToday"></div>
+        <div class="teacher-chip-row">
+          <span class="teacher-chip">Role: Teacher</span>
+          <span class="teacher-chip">School Portal</span>
         </div>
+      </div>
+      <a href="{{ url_for('teacher_virtual_classes') }}" class="btn btn-light btn-sm cta-btn">Start Virtual Class</a>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-1">
+    <div class="col-6 col-lg-3">
+      <div class="kpi-card">
+        <div class="kpi-label">Attendance Marked Today</div>
+        <div class="kpi-value">{{ dashboard_stats.attendance_today if dashboard_stats else 0 }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="kpi-card">
+        <div class="kpi-label">Pending Check-outs</div>
+        <div class="kpi-value">{{ dashboard_stats.pending_checkouts if dashboard_stats else 0 }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="kpi-card">
+        <div class="kpi-label">My Assignments</div>
+        <div class="kpi-value">{{ dashboard_stats.total_assignments if dashboard_stats else 0 }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="kpi-card">
+        <div class="kpi-label">Virtual Classes Created</div>
+        <div class="kpi-value">{{ dashboard_stats.total_virtual_classes if dashboard_stats else 0 }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-4">
+      <div class="card card-flat h-100">
+        <div class="card-body text-center">
+          <img src="{{ profile_pic }}" alt="Teacher profile" class="teacher-avatar mb-2">
+          <h5 class="mb-1 teacher-name">{{ name }} {{ sname }}</h5>
+          <p class="small-muted mb-1">{{ email }}</p>
+          <p class="small-muted mb-1">{{ phone }}</p>
+          <p class="small-muted mb-1">Gender: {{ gender }}</p>
+          <p class="small-muted mb-0">Joined: {{ join_date }}</p>
+        </div>
+      </div>
     </div>
 
-    
+    <div class="col-lg-8">
+      <div class="card card-flat h-100">
+        <div class="card-body">
+          <h6 class="section-title">Quick Actions</h6>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <a class="quick-link" href="{{ url_for('attendance') }}">
+                <h6>Register Attendance</h6>
+                <p class="small-muted mb-0">Mark today’s student attendance quickly.</p>
+              </a>
+            </div>
+            <div class="col-md-6">
+              <a class="quick-link" href="{{ url_for('view_students_marks') }}">
+                <h6>Set Exam Scores</h6>
+                <p class="small-muted mb-0">Enter and update marks for your class.</p>
+              </a>
+            </div>
+            <div class="col-md-6">
+              <a class="quick-link" href="{{ url_for('type_check') }}">
+                <h6>View Exam Scores</h6>
+                <p class="small-muted mb-0">Review marks and performance per class.</p>
+              </a>
+            </div>
+            <div class="col-md-6">
+              <a class="quick-link" href="{{ url_for('upload_assignment') }}">
+                <h6>Upload Assignment</h6>
+                <p class="small-muted mb-0">Share homework, notes, and files with students.</p>
+              </a>
+            </div>
+            <div class="col-md-6">
+              <a class="quick-link" href="{{ url_for('teacher_assignments') }}">
+                <h6>My Assignments</h6>
+                <p class="small-muted mb-0">Manage and remove your posted assignments.</p>
+              </a>
+            </div>
+            <div class="col-md-6">
+              <a class="quick-link" href="{{ url_for('attendance_report') }}">
+                <h6>Attendance Reports</h6>
+                <p class="small-muted mb-0">Check attendance trends and daily report.</p>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mt-1">
+    <div class="col-lg-7">
+      <div class="graph-card h-100">
+        <div class="card-body">
+          <h6 class="section-title">Attendance Trend (Last 7 Days)</h6>
+          <div class="graph-wrap">
+            <canvas id="attendanceChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="graph-card h-100">
+        <div class="card-body">
+          <h6 class="section-title">Content & Classes Trend</h6>
+          <div class="graph-wrap">
+            <canvas id="activityChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mt-1">
+    <div class="col-lg-6">
+      <div class="card card-flat h-100">
+        <div class="card-body">
+          <h6 class="section-title">Today’s Priorities</h6>
+          <ul class="small-muted priority-list">
+            <li>Take attendance before first lesson.</li>
+            <li>Upload lesson assignment and resources.</li>
+            <li>Update exam scores for completed tests.</li>
+            <li>Review virtual class schedule.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card card-flat h-100">
+        <div class="card-body">
+          <h6 class="section-title">Virtual Class Access</h6>
+          <p class="small-muted mb-3">Create and manage live classes from your virtual classes page.</p>
+          <a href="{{ url_for('teacher_virtual_classes') }}" class="btn btn-outline-primary btn-sm cta-btn">Open Virtual Classes</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const el = document.getElementById('teacherToday');
+    if (!el) return;
+    const now = new Date();
+    el.textContent = now.toLocaleString(undefined, {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    const labels = {{ chart_labels|tojson }};
+    const attendanceData = {{ chart_attendance|tojson }};
+    const assignmentData = {{ chart_assignments|tojson }};
+    const virtualClassData = {{ chart_virtual_classes|tojson }};
+
+    const attendanceCtx = document.getElementById('attendanceChart');
+    if (attendanceCtx) {
+      new Chart(attendanceCtx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Attendance Marked',
+            data: attendanceData,
+            borderColor: '#0f6d9f',
+            backgroundColor: 'rgba(15, 109, 159, 0.15)',
+            borderWidth: 2,
+            tension: 0.3,
+            fill: true,
+            pointRadius: 3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, ticks: { precision: 0 } },
+            x: { ticks: { maxRotation: 0, autoSkip: true } }
+          }
+        }
+      });
+    }
+
+    const activityCtx = document.getElementById('activityChart');
+    if (activityCtx) {
+      new Chart(activityCtx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Assignments',
+              data: assignmentData,
+              backgroundColor: 'rgba(31, 135, 179, 0.75)',
+              borderRadius: 6
+            },
+            {
+              label: 'Virtual Classes',
+              data: virtualClassData,
+              backgroundColor: 'rgba(23, 108, 131, 0.75)',
+              borderRadius: 6
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+        }
+      });
+    }
+  })();
+</script>
 {% endblock %}

@@ -200,7 +200,7 @@ def login():
                             session.clear()
                             session['userName'] = admission_no
                             session['role'] = 'teacher'
-                            return redirect(url_for('admin_dashboard'))
+                            return redirect(url_for('teacher_home'))
 
         return render_template('login.html', error="Invalid admission number or password")
     return render_template('login.html')
@@ -251,8 +251,8 @@ def manager_signup():
                     """, (username, password, username))
 
                     conn.commit()
-                    sender_email = "richardkeith233@gmail.com"
-                    sender_password = "mnoj wsox aumw tkrs"
+                    sender_email = "crimsonsschools@gmail.com"
+                    sender_password = "jool uoop nwfl bpfo"
                     subject = "Account created successfully"
 
                     body = f"Your password is: {password} and your username is: {username}. Please log in and change it."
@@ -313,7 +313,120 @@ def student_qr():
 @app.route('/tdash')
 def teacher_home():
     userName = session.get('userName')
-    return render_template('thome.html',profile_pic = database.get_profile_t(userName),name = database.get_first_name_t(userName), sname=database.get_last_name_t(userName),email=database.get_email_t(userName),phone = database.get_phone_t(userName), gender= database.get_gender_t(userName), join_date = database.get_join_date_t(userName))
+    if not userName:
+        return redirect(url_for('login'))
+
+    today = datetime.now().strftime('%Y-%m-%d')
+    labels = [(datetime.now() - timedelta(days=delta)).strftime('%Y-%m-%d') for delta in range(6, -1, -1)]
+    attendance_by_day = {d: 0 for d in labels}
+    assignments_by_day = {d: 0 for d in labels}
+    classes_by_day = {d: 0 for d in labels}
+
+    attendance_today = 0
+    pending_checkouts = 0
+    total_assignments = 0
+    total_virtual_classes = 0
+
+    with sqlite3.connect('student.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS attendance(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admission_no TEXT,
+                date TEXT,
+                time_in TEXT,
+                time_out TEXT,
+                status TEXT DEFAULT 'present',
+                marked_by TEXT,
+                marked_out_by TEXT
+            )
+        ''')
+        cursor.execute('''
+            SELECT COUNT(*)
+            FROM attendance
+            WHERE marked_by = ? AND date = ?
+        ''', (userName, today))
+        attendance_today = cursor.fetchone()[0] or 0
+
+        cursor.execute('''
+            SELECT COUNT(*)
+            FROM attendance
+            WHERE marked_by = ? AND date = ? AND (time_out IS NULL OR time_out = '')
+        ''', (userName, today))
+        pending_checkouts = cursor.fetchone()[0] or 0
+
+        cursor.execute('''
+            SELECT date, COUNT(*)
+            FROM attendance
+            WHERE marked_by = ? AND date BETWEEN ? AND ?
+            GROUP BY date
+        ''', (userName, labels[0], labels[-1]))
+        for row in cursor.fetchall():
+            if row[0] in attendance_by_day:
+                attendance_by_day[row[0]] = row[1]
+
+        try:
+            cursor.execute('''
+                SELECT COUNT(*)
+                FROM assignments
+                WHERE uploaded_by = ?
+            ''', (userName,))
+            total_assignments = cursor.fetchone()[0] or 0
+
+            cursor.execute('''
+                SELECT substr(upload_time, 1, 10) AS day, COUNT(*)
+                FROM assignments
+                WHERE uploaded_by = ? AND substr(upload_time, 1, 10) BETWEEN ? AND ?
+                GROUP BY day
+            ''', (userName, labels[0], labels[-1]))
+            for row in cursor.fetchall():
+                if row[0] in assignments_by_day:
+                    assignments_by_day[row[0]] = row[1]
+        except sqlite3.OperationalError:
+            total_assignments = 0
+
+    ensure_virtual_classes_schema()
+    with sqlite3.connect('admin.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT COUNT(*)
+            FROM virtual_classes
+            WHERE created_by = ?
+        ''', (userName,))
+        total_virtual_classes = cursor.fetchone()[0] or 0
+
+        cursor.execute('''
+            SELECT substr(COALESCE(created_at, ''), 1, 10) AS day, COUNT(*)
+            FROM virtual_classes
+            WHERE created_by = ? AND substr(COALESCE(created_at, ''), 1, 10) BETWEEN ? AND ?
+            GROUP BY day
+        ''', (userName, labels[0], labels[-1]))
+        for row in cursor.fetchall():
+            if row[0] in classes_by_day:
+                classes_by_day[row[0]] = row[1]
+
+    dashboard_stats = {
+        'attendance_today': attendance_today,
+        'pending_checkouts': pending_checkouts,
+        'total_assignments': total_assignments,
+        'total_virtual_classes': total_virtual_classes
+    }
+
+    return render_template(
+        'thome.html',
+        profile_pic=database.get_profile_t(userName),
+        name=database.get_first_name_t(userName),
+        sname=database.get_last_name_t(userName),
+        email=database.get_email_t(userName),
+        phone=database.get_phone_t(userName),
+        gender=database.get_gender_t(userName),
+        join_date=database.get_join_date_t(userName),
+        dashboard_stats=dashboard_stats,
+        chart_labels=labels,
+        chart_attendance=[attendance_by_day[d] for d in labels],
+        chart_assignments=[assignments_by_day[d] for d in labels],
+        chart_virtual_classes=[classes_by_day[d] for d in labels]
+    )
 @app.route('/fee')
 def fee():
     return render_template('fee.html')
@@ -2377,8 +2490,8 @@ def submit_signup():
     database.add_level(admission_no, grade,phone,datetime.now())
     database.put_ill_students(admission_no, sickness, treatment)
     database.add_login(admission_no, last_name)
-    sender_email = "richardkeith233@gmail.com"
-    sender_password = "mnoj wsox aumw tkrs"  # Use App Password if 2FA is enabled
+    sender_email = "crimsonsschools@gmail.com"
+    sender_password = "jool uoop nwfl bpfo"  # Use App Password if 2FA is enabled
     recipient_email = email
     password2 = last_name
 
@@ -2832,7 +2945,7 @@ def manager_password():
                 conn.commit()
                 flash('Password changed successfully!', 'success')
                 print('password changed successfully')
-                return redirect('/add_or_remove')
+                return redirect(url_for('manager_dashboard'))
             else:
                 flash('New password and confirmation do not match.', 'error')
                 print('passwords dont match')
@@ -2939,8 +3052,8 @@ def show_students():
             cursor.execute("SELECT 1 FROM logins WHERE admission_no = ?", (admission_number,))
             if cursor.fetchone():
                 cursor.execute("UPDATE logins SET is_locked = ? WHERE admission_no = ?", (new_state, admission_number))
-                sender_email = "richardkeith233@gmail.com"
-                sender_password = "mnoj wsox aumw tkrs"  # Use an App Password if 2FA is enabled
+                sender_email = "crimsonsschools@gmail.com"
+                sender_password = "jool uoop nwfl bpfo"  # Use an App Password if 2FA is enabled
                 recipient_email = database.get_email(admission_number)
 
                 subject = "Crimsons Student Portal"
@@ -2972,8 +3085,8 @@ def show_students():
                 email, name, last_name = result  # Unpacking the tuple
 
                 # Send email notification about password change
-                sender_email = "richardkeith233@gmail.com"
-                sender_password = "mnoj wsox aumw tkrs"  # Use an App Password if 2FA is enabled
+                sender_email = "crimsonsschools@gmail.com"
+                sender_password = "jool uoop nwfl bpfo"  # Use an App Password if 2FA is enabled
                 recipient_email = email
 
                 subject = "Crimsons Student Portal"
@@ -3544,8 +3657,9 @@ def signup():
 
     conn.commit()
     conn.close()
-    sender_email = "richardkeith233@gmail.com"
-    sender_password = "mnoj wsox aumw tkrs"  # Use App Password if 2FA is enabled
+    sender_email = "crimsonsschools@gmail.com"
+    sender_password = "jool uoop nwfl bpfo"
+    # sender_password = "jool uoop nwfl bpfo"  # Use App Password if 2FA is enabled
     recipient_email = email
     password2 = l_name
 
@@ -3592,8 +3706,8 @@ def forgot_password():
 
              # You can generate a random one
 
-        sender_email = "richardkeith233@gmail.com"
-        sender_password = "mnoj wsox aumw tkrs"
+        sender_email = "crimsonsschools@gmail.com"
+        sender_password = "jool uoop nwfl bpfo"
         subject = "Password Reset"
 
         body = f"Your new password is: {default_password}. Please log in and change it."
