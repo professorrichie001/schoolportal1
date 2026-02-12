@@ -982,14 +982,25 @@ def teacher_virtual_classes():
                 scheduled_at_epoch_utc = client_epoch
                 scheduled_at_utc = datetime.utcfromtimestamp(client_epoch).strftime("%Y-%m-%d %H:%M:%S")
 
-        if meeting_mode == 'external_random':
+        if meeting_mode in ('jitsi', 'external_random'):
             meeting_link = f"https://meet.jit.si/schoolportal-{uuid.uuid4().hex[:12]}"
-        elif meeting_mode == 'external_custom':
+        elif meeting_mode in ('google_zoom',):
             if not meeting_link:
-                flash('Please provide an external meeting link.')
+                flash('Please provide a Google Meet or Zoom link.')
                 return redirect(url_for('teacher_virtual_classes'))
             if not (meeting_link.startswith('http://') or meeting_link.startswith('https://')):
-                flash('External meeting link must start with http:// or https://')
+                flash('Meeting link must start with http:// or https://')
+                return redirect(url_for('teacher_virtual_classes'))
+            low = meeting_link.lower()
+            if ('meet.google.com' not in low) and ('zoom.us' not in low):
+                flash('Use a valid Google Meet or Zoom link.')
+                return redirect(url_for('teacher_virtual_classes'))
+        elif meeting_mode in ('custom', 'external_custom'):
+            if not meeting_link:
+                flash('Please provide a custom meeting link.')
+                return redirect(url_for('teacher_virtual_classes'))
+            if not (meeting_link.startswith('http://') or meeting_link.startswith('https://')):
+                flash('Custom link must start with http:// or https://')
                 return redirect(url_for('teacher_virtual_classes'))
         else:
             room_code = f"room-{uuid.uuid4().hex[:10]}"

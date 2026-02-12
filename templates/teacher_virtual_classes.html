@@ -35,16 +35,17 @@
         <div class="col-md-4">
           <label for="meeting_mode" class="form-label">Link Type</label>
           <select class="form-select" id="meeting_mode" name="meeting_mode">
-            <option value="built_in">Built-in class room</option>
-            <option value="external_random">External random link</option>
-            <option value="external_custom">External custom link</option>
+            <option value="jitsi"> Jitsi</option>
+            <option value="google_zoom"> Google Zoom</option>
+            <option value="custom"> Custom</option>
+            <option value="built_in"> Built-in</option>
           </select>
           <small class="text-muted">Choose how the join link is created.</small>
         </div>
         <div class="col-md-4" id="meetingLinkWrap">
-          <label for="meeting_link" class="form-label">External Meeting Link</label>
+          <label for="meeting_link" class="form-label">Meeting Link</label>
           <input type="url" class="form-control" id="meeting_link" name="meeting_link" placeholder="https://...">
-          <small class="text-muted">Used only for "External custom link".</small>
+          <small class="text-muted" id="meetingLinkHelp">Used for selected external mode.</small>
         </div>
         <div class="col-md-4">
           <label for="scheduled_at" class="form-label">Scheduled Date/Time</label>
@@ -113,15 +114,23 @@
     const mode = document.getElementById('meeting_mode');
     const wrap = document.getElementById('meetingLinkWrap');
     const input = document.getElementById('meeting_link');
+    const help = document.getElementById('meetingLinkHelp');
     const tzOffset = document.getElementById('timezone_offset');
     const scheduledAt = document.getElementById('scheduled_at');
     const scheduledAtEpoch = document.getElementById('scheduled_at_epoch_utc');
 
     function syncMeetingLinkField() {
-      const needsCustomLink = mode.value === 'external_custom';
-      wrap.style.display = needsCustomLink ? '' : 'none';
-      input.required = needsCustomLink;
-      if (!needsCustomLink) input.value = '';
+      const needsLink = (mode.value === 'google_zoom' || mode.value === 'custom');
+      wrap.style.display = needsLink ? '' : 'none';
+      input.required = needsLink;
+      if (mode.value === 'google_zoom') {
+        help.textContent = 'Paste a Google Meet or Zoom link.';
+      } else if (mode.value === 'custom') {
+        help.textContent = 'Paste any valid meeting link (http/https).';
+      } else {
+        help.textContent = 'Used for selected external mode.';
+        input.value = '';
+      }
     }
 
     mode.addEventListener('change', syncMeetingLinkField);
