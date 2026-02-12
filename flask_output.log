@@ -1,7 +1,0 @@
-nohup: ignoring input
-Traceback (most recent call last):
-  File "/home/mesh/schoolportal/app2.py", line 9, in <module>
-    import qr_scanner
-  File "/home/mesh/schoolportal/qr_scanner.py", line 5, in <module>
-    import cv2
-ModuleNotFoundError: No module named 'cv2'

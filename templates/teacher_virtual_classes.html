@@ -1,0 +1,126 @@
+{% extends 'admin_dashboard.html' %}
+{% block content %}
+<link rel="stylesheet" href="../static/assets/css/styles.min.css" />
+<link rel="stylesheet" href="../static/assets/css/n.css" />
+
+<div class="card mb-4">
+  <div class="card-body">
+    <h4 class="mb-3">Set a Virtual Class</h4>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-info">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('teacher_virtual_classes') }}">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label for="title" class="form-label">Class Title</label>
+          <input type="text" class="form-control" id="title" name="title" required>
+        </div>
+        <div class="col-md-6">
+          <label for="target_class" class="form-label">Target Class</label>
+          <select class="form-select" id="target_class" name="target_class" required>
+            <option value="">Select class</option>
+            {% for class_id, class_name in classes %}
+              <option value="{{ class_id }}">{{ class_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label for="meeting_mode" class="form-label">Link Type</label>
+          <select class="form-select" id="meeting_mode" name="meeting_mode">
+            <option value="built_in">Built-in class room</option>
+            <option value="external_random">External random link</option>
+            <option value="external_custom">External custom link</option>
+          </select>
+          <small class="text-muted">Choose how the join link is created.</small>
+        </div>
+        <div class="col-md-4" id="meetingLinkWrap">
+          <label for="meeting_link" class="form-label">External Meeting Link</label>
+          <input type="url" class="form-control" id="meeting_link" name="meeting_link" placeholder="https://...">
+          <small class="text-muted">Used only for "External custom link".</small>
+        </div>
+        <div class="col-md-4">
+          <label for="scheduled_at" class="form-label">Scheduled Date/Time</label>
+          <input type="datetime-local" class="form-control" id="scheduled_at" name="scheduled_at">
+        </div>
+        <div class="col-12">
+          <label for="notes" class="form-label">Notes</label>
+          <textarea class="form-control" id="notes" name="notes" rows="2" placeholder="Optional details for students"></textarea>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary mt-3">Create Virtual Class</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h4 class="mb-3">My Virtual Classes</h4>
+    {% if virtual_classes %}
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Class</th>
+              <th>Scheduled</th>
+              <th>Join Link</th>
+              <th>Notes</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for vc in virtual_classes %}
+              <tr>
+                <td><strong>{{ vc.title }}</strong></td>
+                <td>{{ vc.target_class }}</td>
+                <td>{{ vc.scheduled_at }}</td>
+                <td>
+                  {% if vc.meeting_link %}
+                    <a href="{{ url_for('join_virtual_class', class_id=vc.id) }}">Open</a>
+                    {% if vc.is_internal %}
+                      <small class="text-success d-block">Built-in room</small>
+                    {% endif %}
+                  {% else %}
+                    <span class="text-danger">Invalid link</span>
+                  {% endif %}
+                </td>
+                <td>{{ vc.notes if vc.notes else '-' }}</td>
+                <td>
+                  <form method="POST" action="{{ url_for('delete_virtual_class', class_id=vc.id) }}" onsubmit="return confirm('Delete this virtual class?');">
+                    <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p>No virtual classes created yet.</p>
+    {% endif %}
+  </div>
+</div>
+<script>
+  (function () {
+    const mode = document.getElementById('meeting_mode');
+    const wrap = document.getElementById('meetingLinkWrap');
+    const input = document.getElementById('meeting_link');
+
+    function syncMeetingLinkField() {
+      const needsCustomLink = mode.value === 'external_custom';
+      wrap.style.display = needsCustomLink ? '' : 'none';
+      input.required = needsCustomLink;
+      if (!needsCustomLink) input.value = '';
+    }
+
+    mode.addEventListener('change', syncMeetingLinkField);
+    syncMeetingLinkField();
+  })();
+</script>
+{% endblock %}

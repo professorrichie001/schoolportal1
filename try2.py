@@ -89,23 +89,23 @@ DB_NAME = "manager.db"
 #     finally:
 #         if conn:
 #             conn.close()
-def clear_fees():
-    try:
-        conn = sqlite3.connect("fees.db")
-        cursor = conn.cursor()
+# def clear_fees():
+#     try:
+#         conn = sqlite3.connect("fees.db")
+#         cursor = conn.cursor()
 
-        # Delete all records
-        cursor.execute("DELETE FROM fees;")
-        cursor.execute("DELETE FROM payment_history;")
-        cursor.execute("DELETE FROM students;")
+#         # Delete all records
+#         cursor.execute("DELETE FROM fees;")
+#         cursor.execute("DELETE FROM payment_history;")
+#         cursor.execute("DELETE FROM students;")
         
         
 
-        conn.commit()
-        print("✅ All data cleared from fees tables.")
+#         conn.commit()
+#         print("✅ All data cleared from fees tables.")
 
-    except sqlite3.Error as e:
-        print("❌ Database error:", e)
+#     except sqlite3.Error as e:
+#         print("❌ Database error:", e)
 
        
-clear_fees()
+# clear_fees()

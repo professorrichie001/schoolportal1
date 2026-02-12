@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ room_title }} - Video Room</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; }
+    .topbar { padding: 12px 16px; background: #1e293b; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .topbar h3 { margin: 0; font-size: 18px; }
+    .meta { font-size: 13px; color: #94a3b8; }
+    .actions { display: flex; gap: 10px; }
+    button { border: none; border-radius: 6px; padding: 8px 12px; cursor: pointer; }
+    .btn { background: #334155; color: #fff; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; padding: 12px; }
+    .tile { background: #111827; border: 1px solid #1f2937; border-radius: 10px; overflow: hidden; }
+    .tile video { width: 100%; height: 200px; background: #000; object-fit: cover; }
+    .tile .name { padding: 8px 10px; font-size: 13px; color: #cbd5e1; }
+    .status { padding: 8px 12px; font-size: 13px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div>
+      <h3>{{ room_title }}</h3>
+      <div class="meta">Room: {{ room_code }} | You: {{ user_name }} ({{ role }})</div>
+    </div>
+    <div class="actions">
+      <button class="btn" id="toggleMic">Mute</button>
+      <button class="btn" id="toggleCam">Stop Video</button>
+      <button class="btn-danger" id="leaveBtn">Leave</button>
+    </div>
+  </div>
+
+  <div class="status" id="status">Initializing camera and microphone...</div>
+  <div class="grid" id="videoGrid"></div>
+
+  <script>
+    const roomCode = {{ room_code|tojson }};
+    const displayName = {{ user_name|tojson }};
+    const peerId = `peer-${Math.random().toString(36).slice(2, 10)}-${Date.now()}`;
+    const pollingMs = 900;
+
+    const videoGrid = document.getElementById('videoGrid');
+    const statusEl = document.getElementById('status');
+    const toggleMicBtn = document.getElementById('toggleMic');
+    const toggleCamBtn = document.getElementById('toggleCam');
+    const leaveBtn = document.getElementById('leaveBtn');
+
+    let localStream = null;
+    let pollTimer = null;
+    const peers = new Map();
+
+    function setStatus(msg) { statusEl.textContent = msg; }
+
+    function addVideoTile(id, stream, name, muted = false) {
+      let tile = document.getElementById(`tile-${id}`);
+      if (!tile) {
+        tile = document.createElement('div');
+        tile.id = `tile-${id}`;
+        tile.className = 'tile';
+        tile.innerHTML = `<video autoplay playsinline></video><div class="name"></div>`;
+        videoGrid.appendChild(tile);
+      }
+      const video = tile.querySelector('video');
+      video.srcObject = stream;
+      video.muted = muted;
+      tile.querySelector('.name').textContent = name || id;
+    }
+
+    function removeVideoTile(id) {
+      const tile = document.getElementById(`tile-${id}`);
+      if (tile) tile.remove();
+    }
+
+    function createPeerConnection(remotePeerId, remoteName) {
+      if (peers.has(remotePeerId)) return peers.get(remotePeerId);
+
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+      });
+
+      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          sendSignal(remotePeerId, 'candidate', event.candidate);
+        }
+      };
+
+      pc.ontrack = (event) => {
+        addVideoTile(remotePeerId, event.streams[0], remoteName || remotePeerId, false);
+      };
+
+      peers.set(remotePeerId, { pc, name: remoteName || remotePeerId });
+      return peers.get(remotePeerId);
+    }
+
+    async function sendSignal(toPeer, type, payload) {
+      await fetch(`/api/video/${roomCode}/signal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to_peer: toPeer, from_peer: peerId, type, payload })
+      });
+    }
+
+    async function connectToPeer(remotePeerId, remoteName) {
+      const info = createPeerConnection(remotePeerId, remoteName);
+      const offer = await info.pc.createOffer();
+      await info.pc.setLocalDescription(offer);
+      await sendSignal(remotePeerId, 'offer', offer);
+    }
+
+    async function handleSignal(message) {
+      const type = message.type;
+      const fromPeer = message.from_peer;
+
+      if (type === 'peer-joined') {
+        await connectToPeer(fromPeer, message.name || fromPeer);
+        return;
+      }
+
+      if (type === 'peer-left') {
+        const peer = peers.get(fromPeer);
+        if (peer) {
+          peer.pc.close();
+          peers.delete(fromPeer);
+        }
+        removeVideoTile(fromPeer);
+        return;
+      }
+
+      if (type === 'offer') {
+        const peer = createPeerConnection(fromPeer, fromPeer);
+        await peer.pc.setRemoteDescription(new RTCSessionDescription(message.payload));
+        const answer = await peer.pc.createAnswer();
+        await peer.pc.setLocalDescription(answer);
+        await sendSignal(fromPeer, 'answer', answer);
+        return;
+      }
+
+      if (type === 'answer') {
+        const peer = peers.get(fromPeer);
+        if (peer) {
+          await peer.pc.setRemoteDescription(new RTCSessionDescription(message.payload));
+        }
+        return;
+      }
+
+      if (type === 'candidate') {
+        const peer = peers.get(fromPeer);
+        if (peer && message.payload) {
+          try {
+            await peer.pc.addIceCandidate(new RTCIceCandidate(message.payload));
+          } catch (e) {}
+        }
+      }
+    }
+
+    async function pollSignals() {
+      try {
+        const res = await fetch(`/api/video/${roomCode}/poll/${peerId}`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.messages)) {
+          for (const msg of data.messages) {
+            await handleSignal(msg);
+          }
+        }
+      } catch (err) {}
+    }
+
+    async function joinRoom() {
+      const res = await fetch(`/api/video/${roomCode}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ peer_id: peerId, name: displayName })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message || 'Join failed');
+
+      for (const p of data.peers || []) {
+        await connectToPeer(p.peer_id, p.name);
+      }
+
+      pollTimer = setInterval(pollSignals, pollingMs);
+      setStatus('Connected. Waiting for participants...');
+    }
+
+    async function leaveRoom() {
+      if (pollTimer) clearInterval(pollTimer);
+      try {
+        await fetch(`/api/video/${roomCode}/leave`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ peer_id: peerId })
+        });
+      } catch (e) {}
+
+      peers.forEach((v) => v.pc.close());
+      peers.clear();
+      if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+      }
+      window.history.back();
+    }
+
+    toggleMicBtn.addEventListener('click', () => {
+      if (!localStream) return;
+      const audioTrack = localStream.getAudioTracks()[0];
+      if (!audioTrack) return;
+      audioTrack.enabled = !audioTrack.enabled;
+      toggleMicBtn.textContent = audioTrack.enabled ? 'Mute' : 'Unmute';
+    });
+
+    toggleCamBtn.addEventListener('click', () => {
+      if (!localStream) return;
+      const videoTrack = localStream.getVideoTracks()[0];
+      if (!videoTrack) return;
+      videoTrack.enabled = !videoTrack.enabled;
+      toggleCamBtn.textContent = videoTrack.enabled ? 'Stop Video' : 'Start Video';
+    });
+
+    leaveBtn.addEventListener('click', leaveRoom);
+    window.addEventListener('beforeunload', () => { navigator.sendBeacon(`/api/video/${roomCode}/leave`, new Blob([JSON.stringify({ peer_id: peerId })], { type: 'application/json' })); });
+
+    (async function init() {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        addVideoTile(peerId, localStream, `${displayName} (You)`, true);
+        await joinRoom();
+      } catch (e) {
+        setStatus('Camera/mic access denied or unavailable.');
+      }
+    })();
+  </script>
+</body>
+</html>

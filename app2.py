@@ -20,6 +20,8 @@ from reportlab.pdfgen import canvas
 from datetime import datetime, timedelta
 import logging
 import time
+import threading
+import uuid
 import graph2
 import pp_compressor
 
@@ -696,28 +698,486 @@ class_mapping = {
     "15": "Grade 12",
 }
 
-@app.route("/type_check2")
-def teacher_classes():
+video_signal_state = {}
+video_signal_lock = threading.Lock()
+
+
+def ensure_virtual_classes_schema():
+    with sqlite3.connect('admin.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS virtual_classes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                target_class TEXT NOT NULL,
+                meeting_link TEXT NOT NULL,
+                scheduled_at TEXT,
+                notes TEXT,
+                created_by TEXT NOT NULL,
+                is_internal INTEGER DEFAULT 0,
+                room_code TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        cursor.execute("PRAGMA table_info(virtual_classes)")
+        cols = {row[1] for row in cursor.fetchall()}
+        if "is_internal" not in cols:
+            cursor.execute("ALTER TABLE virtual_classes ADD COLUMN is_internal INTEGER DEFAULT 0")
+        if "room_code" not in cols:
+            cursor.execute("ALTER TABLE virtual_classes ADD COLUMN room_code TEXT")
+        if "created_at" not in cols:
+            cursor.execute("ALTER TABLE virtual_classes ADD COLUMN created_at DATETIME")
+        conn.commit()
+
+
+def normalize_grade(value):
+    if value is None:
+        return ""
+    return "".join(ch for ch in str(value).lower() if ch.isalnum())
+
+
+def parse_scheduled_at(value):
+    if not value:
+        return None
+    raw = str(value).strip()
+    for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return datetime.strptime(raw, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def class_matches(target_class, class_id):
+    if not target_class or not class_id:
+        return False
+    target_norm = normalize_grade(target_class)
+    short_name = class_mapping1.get(class_id, '')
+    pretty_name = class_mapping.get(class_id, '')
+    return (
+        target_norm == normalize_grade(class_id)
+        or target_norm == normalize_grade(short_name)
+        or target_norm == normalize_grade(pretty_name)
+    )
+
+
+def teacher_allowed_classes(teacher_id):
+    with sqlite3.connect("admin.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT grade FROM teachers WHERE username = ?", (teacher_id,))
+        result = cursor.fetchone()
+
+    if not result or not result[0]:
+        return []
+
+    allowed = []
+    for raw in result[0].split(","):
+        key = raw.strip()
+        if key in class_mapping:
+            allowed.append((key, class_mapping[key]))
+    return allowed
+
+
+def display_class_name(target_class):
+    if target_class in class_mapping:
+        return class_mapping[target_class]
+
+    norm_target = normalize_grade(target_class)
+    for key, short_name in class_mapping1.items():
+        if norm_target == normalize_grade(short_name):
+            return class_mapping.get(key, target_class)
+    for _, pretty_name in class_mapping.items():
+        if norm_target == normalize_grade(pretty_name):
+            return pretty_name
+    return target_class
+
+
+def student_class_id(admission_no):
+    with sqlite3.connect("student.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT grade FROM rest WHERE admission_no = ?", (admission_no,))
+        result = cursor.fetchone()
+
+    if not result or not result[0]:
+        return None
+
+    raw = str(result[0]).strip()
+    if raw in class_mapping:
+        return raw
+
+    norm_raw = normalize_grade(raw)
+    for key, short_name in class_mapping1.items():
+        if norm_raw == normalize_grade(short_name):
+            return key
+    for key, pretty_name in class_mapping.items():
+        if norm_raw == normalize_grade(pretty_name):
+            return key
+    return None
+
+
+@app.route('/teacher/virtual_classes', methods=['GET', 'POST'])
+def teacher_virtual_classes():
     teacher_id = session.get('userName')
-    conn = sqlite3.connect("admin.db")
-    cursor = conn.cursor()
+    if not teacher_id:
+        return redirect(url_for('login'))
 
-    # Fetch the subjects column for the teacher
-    cursor.execute("SELECT grade FROM teachers WHERE username = ?", (teacher_id,))
-    result = cursor.fetchone()
-    conn.close()
+    ensure_virtual_classes_schema()
+    classes = teacher_allowed_classes(teacher_id)
+    allowed_ids = {class_id for class_id, _ in classes}
 
-    if result:
-        subject_numbers = [num.strip() for num in result[0].split(",")]
-        class_options = {
-            num: class_mapping[num]
-            for num in subject_numbers
-            if num in class_mapping
-        }
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        target_class = request.form.get('target_class', '').strip()
+        meeting_mode = request.form.get('meeting_mode', 'built_in').strip()
+        meeting_link = request.form.get('meeting_link', '').strip()
+        scheduled_at = request.form.get('scheduled_at', '').strip()
+        notes = request.form.get('notes', '').strip()
+
+        if not title or not target_class:
+            flash('Title and target class are required.')
+            return redirect(url_for('teacher_virtual_classes'))
+
+        if target_class not in allowed_ids:
+            flash('You can only create classes for your assigned grades.')
+            return redirect(url_for('teacher_virtual_classes'))
+
+        room_code = None
+        is_internal = 0
+
+        if meeting_mode == 'external_random':
+            meeting_link = f"https://meet.jit.si/schoolportal-{uuid.uuid4().hex[:12]}"
+        elif meeting_mode == 'external_custom':
+            if not meeting_link:
+                flash('Please provide an external meeting link.')
+                return redirect(url_for('teacher_virtual_classes'))
+            if not (meeting_link.startswith('http://') or meeting_link.startswith('https://')):
+                flash('External meeting link must start with http:// or https://')
+                return redirect(url_for('teacher_virtual_classes'))
+        else:
+            room_code = f"room-{uuid.uuid4().hex[:10]}"
+            meeting_link = url_for('video_room', room_code=room_code, _external=True)
+            is_internal = 1
+
+        with sqlite3.connect('admin.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO virtual_classes
+                (title, target_class, meeting_link, scheduled_at, notes, created_by, is_internal, room_code)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                title,
+                target_class,
+                meeting_link,
+                scheduled_at if scheduled_at else None,
+                notes if notes else None,
+                teacher_id,
+                is_internal,
+                room_code
+            ))
+            conn.commit()
+
+        flash('Virtual class created successfully.')
+        return redirect(url_for('teacher_virtual_classes'))
+
+    with sqlite3.connect('admin.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, title, target_class, meeting_link, scheduled_at, notes, is_internal
+            FROM virtual_classes
+            WHERE created_by = ?
+            ORDER BY id DESC
+        ''', (teacher_id,))
+        rows = cursor.fetchall()
+
+    virtual_classes = []
+    for row in rows:
+        virtual_classes.append({
+            'id': row[0],
+            'title': row[1],
+            'target_class': display_class_name(row[2]),
+            'meeting_link': row[3],
+            'scheduled_at': row[4] if row[4] else '-',
+            'notes': row[5],
+            'is_internal': bool(row[6])
+        })
+
+    return render_template(
+        'teacher_virtual_classes.html',
+        classes=classes,
+        virtual_classes=virtual_classes,
+        profile_pic=database.get_profile_t(teacher_id)
+    )
+
+
+@app.route('/teacher/virtual_classes/delete/<int:class_id>', methods=['POST'])
+def delete_virtual_class(class_id):
+    teacher_id = session.get('userName')
+    if not teacher_id:
+        return redirect(url_for('login'))
+
+    ensure_virtual_classes_schema()
+    with sqlite3.connect('admin.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM virtual_classes WHERE id = ? AND created_by = ?",
+            (class_id, teacher_id)
+        )
+        deleted = cursor.rowcount
+        conn.commit()
+
+    if deleted:
+        flash('Virtual class deleted.')
     else:
-        class_options = {}
+        flash('Virtual class not found or not owned by your account.')
+    return redirect(url_for('teacher_virtual_classes'))
 
-    return render_template("type_check1.html", class_options=class_options, profile_pic = database.get_profile_t(teacher_id))
+
+@app.route('/student/virtual_classes')
+def student_virtual_classes():
+    admission_no = session.get('admission_no')
+    if not admission_no:
+        return redirect(url_for('login'))
+
+    ensure_virtual_classes_schema()
+    class_id = student_class_id(admission_no)
+    if not class_id:
+        flash('Your class is not set. Contact administration.')
+        return render_template(
+            'student_virtual_classes.html',
+            virtual_classes=[],
+            profile_pic=database.get_profile(admission_no)
+        )
+
+    with sqlite3.connect('admin.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, title, target_class, meeting_link, scheduled_at, notes, created_by, is_internal
+            FROM virtual_classes
+            ORDER BY id DESC
+        ''')
+        rows = cursor.fetchall()
+
+    virtual_classes = []
+    for row in rows:
+        target_class = row[2]
+        matches = class_matches(target_class, class_id)
+        if not matches:
+            continue
+
+        virtual_classes.append({
+            'id': row[0],
+            'title': row[1],
+            'target_class': display_class_name(target_class),
+            'meeting_link': row[3],
+            'scheduled_at': row[4] if row[4] else '-',
+            'notes': row[5],
+            'created_by': row[6],
+            'is_internal': bool(row[7]),
+        })
+
+    return render_template(
+        'student_virtual_classes.html',
+        virtual_classes=virtual_classes,
+        profile_pic=database.get_profile(admission_no)
+    )
+
+
+@app.route('/virtual_classes/join/<int:class_id>')
+def join_virtual_class(class_id):
+    teacher_id = session.get('userName')
+    admission_no = session.get('admission_no')
+    if not teacher_id and not admission_no:
+        return redirect(url_for('login'))
+
+    ensure_virtual_classes_schema()
+    with sqlite3.connect('admin.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT id, title, target_class, meeting_link, scheduled_at, created_by
+            FROM virtual_classes
+            WHERE id = ?
+        ''', (class_id,))
+        row = cursor.fetchone()
+
+    if not row:
+        flash('Virtual class not found.')
+        if admission_no:
+            return redirect(url_for('student_virtual_classes'))
+        return redirect(url_for('teacher_virtual_classes'))
+
+    target_class = row[2]
+    meeting_link = row[3]
+    scheduled_at = row[4]
+
+    if admission_no:
+        class_id_for_student = student_class_id(admission_no)
+        if not class_matches(target_class, class_id_for_student):
+            flash('You are not authorized for this virtual class.')
+            return redirect(url_for('student_virtual_classes'))
+
+    open_time = parse_scheduled_at(scheduled_at)
+    if open_time and datetime.now() < open_time:
+        flash(f'Room opens at {open_time.strftime("%Y-%m-%d %H:%M")}.')
+        if admission_no:
+            return redirect(url_for('student_virtual_classes'))
+        return redirect(url_for('teacher_virtual_classes'))
+
+    return redirect(meeting_link)
+
+
+@app.route('/video_room/<room_code>')
+def video_room(room_code):
+    teacher_id = session.get('userName')
+    admission_no = session.get('admission_no')
+    if not teacher_id and not admission_no:
+        return redirect(url_for('login'))
+
+    ensure_virtual_classes_schema()
+    with sqlite3.connect('admin.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT title, target_class, scheduled_at FROM virtual_classes WHERE room_code = ?",
+            (room_code,)
+        )
+        row = cursor.fetchone()
+
+    room_title = row[0] if row else "Virtual Class Room"
+    target_class = row[1] if row else None
+    scheduled_at = row[2] if row else None
+
+    open_time = parse_scheduled_at(scheduled_at)
+    if open_time and datetime.now() < open_time:
+        flash(f'Room opens at {open_time.strftime("%Y-%m-%d %H:%M")}.')
+        if admission_no:
+            return redirect(url_for('student_virtual_classes'))
+        return redirect(url_for('teacher_virtual_classes'))
+
+    if admission_no and target_class:
+        class_id = student_class_id(admission_no)
+        if not class_matches(target_class, class_id):
+            flash('You are not authorized for this virtual class.')
+            return redirect(url_for('student_virtual_classes'))
+
+    if teacher_id:
+        user_name = teacher_id
+        role = "teacher"
+    else:
+        user_name = admission_no
+        role = "student"
+
+    return render_template(
+        'video_room.html',
+        room_code=room_code,
+        room_title=room_title,
+        user_name=user_name,
+        role=role
+    )
+
+
+@app.route('/api/video/<room_code>/join', methods=['POST'])
+def video_join(room_code):
+    payload = request.get_json(silent=True) or {}
+    peer_id = payload.get('peer_id')
+    peer_name = payload.get('name') or peer_id
+    if not peer_id:
+        return jsonify({'success': False, 'message': 'peer_id required'}), 400
+
+    with video_signal_lock:
+        room = video_signal_state.setdefault(room_code, {
+            'participants': {},
+            'messages': {}
+        })
+
+        existing_peers = [
+            {'peer_id': pid, 'name': pdata.get('name', pid)}
+            for pid, pdata in room['participants'].items()
+            if pid != peer_id
+        ]
+
+        room['participants'][peer_id] = {'name': peer_name}
+        room['messages'].setdefault(peer_id, [])
+
+        for pid in room['participants'].keys():
+            if pid == peer_id:
+                continue
+            room['messages'].setdefault(pid, []).append({
+                'type': 'peer-joined',
+                'from_peer': peer_id,
+                'name': peer_name
+            })
+
+    return jsonify({'success': True, 'peers': existing_peers})
+
+
+@app.route('/api/video/<room_code>/signal', methods=['POST'])
+def video_signal(room_code):
+    payload = request.get_json(silent=True) or {}
+    to_peer = payload.get('to_peer')
+    from_peer = payload.get('from_peer')
+    signal_type = payload.get('type')
+    signal_payload = payload.get('payload')
+
+    if not to_peer or not from_peer or not signal_type:
+        return jsonify({'success': False, 'message': 'to_peer, from_peer and type are required'}), 400
+
+    with video_signal_lock:
+        room = video_signal_state.setdefault(room_code, {
+            'participants': {},
+            'messages': {}
+        })
+        room['messages'].setdefault(to_peer, []).append({
+            'type': signal_type,
+            'from_peer': from_peer,
+            'payload': signal_payload
+        })
+
+    return jsonify({'success': True})
+
+
+@app.route('/api/video/<room_code>/poll/<peer_id>')
+def video_poll(room_code, peer_id):
+    with video_signal_lock:
+        room = video_signal_state.get(room_code)
+        if not room:
+            return jsonify({'success': True, 'messages': []})
+        messages = room['messages'].get(peer_id, [])
+        room['messages'][peer_id] = []
+    return jsonify({'success': True, 'messages': messages})
+
+
+@app.route('/api/video/<room_code>/leave', methods=['POST'])
+def video_leave(room_code):
+    payload = request.get_json(silent=True) or {}
+    peer_id = payload.get('peer_id')
+    if not peer_id:
+        return jsonify({'success': False, 'message': 'peer_id required'}), 400
+
+    with video_signal_lock:
+        room = video_signal_state.get(room_code)
+        if not room:
+            return jsonify({'success': True})
+
+        if peer_id in room['participants']:
+            del room['participants'][peer_id]
+        if peer_id in room['messages']:
+            del room['messages'][peer_id]
+
+        for pid in room['participants'].keys():
+            room['messages'].setdefault(pid, []).append({
+                'type': 'peer-left',
+                'from_peer': peer_id
+            })
+
+        if not room['participants']:
+            del video_signal_state[room_code]
+
+    return jsonify({'success': True})
+
+
+@app.route("/type_check2", methods=['GET', 'POST'])
+@app.route("/typecheck2", methods=['GET', 'POST'])
+def teacher_classes():
+    return teacher_virtual_classes()
 
 @app.route('/type_check')
 def type_check():
@@ -3835,4 +4295,4 @@ if __name__ == '__main__':
     if not os.path.exists('static/uploads'):
         os.makedirs('static/uploads')
     database.add_all_tables()
-    app.run(debug=True)
+    app.run(debug=True, port=5000)

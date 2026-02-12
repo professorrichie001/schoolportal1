@@ -2,13 +2,21 @@
 QR Code Scanner Module using Python
 Handles QR code detection from camera frames
 """
-import cv2
-from pyzbar.pyzbar import decode
 import logging
 import base64
 import io
 import numpy as np
 from PIL import Image
+
+try:
+    import cv2
+except ImportError:
+    cv2 = None
+
+try:
+    from pyzbar.pyzbar import decode
+except ImportError:
+    decode = None
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +26,9 @@ def capture_and_scan_frame():
     Returns the QR code data if found, None otherwise.
     """
     try:
+        if cv2 is None or decode is None:
+            logger.error("QR scanner dependencies are missing (cv2/pyzbar)")
+            return None, None
         cap = cv2.VideoCapture(0)
         if not cap.isOpened():
             logger.error("Failed to open camera")
@@ -56,6 +67,9 @@ def scan_qr_from_base64(image_base64):
     Used for processing images sent from the frontend.
     """
     try:
+        if cv2 is None or decode is None:
+            logger.error("QR scanner dependencies are missing (cv2/pyzbar)")
+            return None
         # Decode base64 image
         img_data = base64.b64decode(image_base64.split(',')[1] if ',' in image_base64 else image_base64)
         nparr = np.frombuffer(img_data, np.uint8)

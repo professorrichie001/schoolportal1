@@ -13,7 +13,7 @@
    
 </head>
 
-<body>
+<body> 
   <!--  Body Wrapper -->
   <div class="page-wrapper" id="main-wrapper" data-layout="vertical" data-navbarbg="skin6" data-sidebartype="full"
     data-sidebar-position="fixed" data-header-position="fixed">
@@ -64,6 +64,12 @@
               <a class="sidebar-link" href="{{ url_for('manage_student_subjects_page') }}" aria-expanded="false">
                 <span class="icon"><ion-icon name="book-outline"></ion-icon></span>
                 <span class="hide-menu">Manage Student Subjects</span>
+              </a>
+            </li>
+            <li class="sidebar-item">
+              <a class="sidebar-link" href="{{ url_for('teacher_virtual_classes') }}" aria-expanded="false">
+                <span class="icon"><ion-icon name="videocam-outline"></ion-icon></span>
+                <span class="hide-menu">Virtual Classes</span>
               </a>
             </li>
 
