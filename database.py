@@ -770,21 +770,21 @@ def remove_student_fee(admission_no):
 
         # Commit the transaction to make sure the deletion is saved
         conn.commit()
-def remove_student_assignment(admission_no):
-    # Connect to the SQLite database
-    with sqlite3.connect('student.db') as conn:
-        cursor = conn.cursor()
+# def remove_student_assignment(admission_no):
+#     # Connect to the SQLite database
+#     with sqlite3.connect('student.db') as conn:
+#         cursor = conn.cursor()
 
-        # Define the SQL query with a parameter placeholder
-        query = '''
-            DELETE FROM assignments WHERE admission_no = ?
-        '''
+#         # Define the SQL query with a parameter placeholder
+#         query = '''
+#             DELETE FROM assignments WHERE admission_no = ?
+#         '''
 
-        # Execute the query with the admission number as the parameter
-        cursor.execute(query, (admission_no,))
+#         # Execute the query with the admission number as the parameter
+#         cursor.execute(query, (admission_no,))
 
-        # Commit the transaction to make sure the deletion is saved
-        conn.commit()
+#         # Commit the transaction to make sure the deletion is saved
+#         conn.commit()
 def remove_student_details(admission_no):
     """
     Removes a student login record from the 'logins' table in the database
@@ -962,7 +962,7 @@ def delete_student(admission_no):
     remove_student_attendance(admission_no)
     remove_student_illness(admission_no)
     remove_student_marks(admission_no)
-    remove_student_assignment(admission_no)
+    
     remove_student_fee(admission_no)
     remove_student_rest(admission_no)
     clear_fees(admission_no)
